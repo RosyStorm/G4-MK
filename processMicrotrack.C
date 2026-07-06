@@ -1,6 +1,12 @@
 #include <map>
 #include <string>
+#include <utility>
 #include <vector>
+
+#include <TError.h>
+#include <TFile.h>
+#include <TH1.h>
+#include <TObject.h>
 
 void processMicrotrack(const char* filename = "microtrack.root")
 {

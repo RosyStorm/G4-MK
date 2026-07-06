@@ -2,10 +2,16 @@
     "configurations": [
         {
             "name": "Linux",
+            "compilerPath": "/usr/bin/g++",
             "compileCommands": "${workspaceFolder}/build/compile_commands.json",
+            "includePath": [
+                "${workspaceFolder}/include",
+                "${env:HOME}/anaconda3/envs/microtrack/include",
+                "${default}"
+            ],
             "intelliSenseMode": "linux-gcc-x64",
             "cStandard": "c17",
-            "cppStandard": "c++17"
+            "cppStandard": "c++20"
         }
     ],
     "version": 4

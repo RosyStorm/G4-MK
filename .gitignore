@@ -61,3 +61,6 @@ G4History.macro
 .DS_Store
 Thumbs.db
 desktop.ini
+
+# ----- 其他 ----
+CLAUDE.md
