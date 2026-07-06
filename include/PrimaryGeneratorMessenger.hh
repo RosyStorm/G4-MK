@@ -55,7 +55,9 @@ class PrimaryGeneratorMessenger : public G4UImessenger
     PrimaryGeneratorAction* fPrimaryAction = nullptr;
 
     std::unique_ptr<G4UIdirectory> fGunDir;
+    std::unique_ptr<G4UIdirectory> fSourceDir;
     std::unique_ptr<G4UIcmdWithADoubleAndUnit> fZ0Cmd;
+    std::unique_ptr<G4UIcmdWithAString> fSourceTypeCmd;
 };
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......

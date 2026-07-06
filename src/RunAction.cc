@@ -85,8 +85,9 @@ RunAction::RunAction()
   std::vector<G4double> vecBinsLog10W(binsLog10W, binsLog10W + nBinsLog10W + 1);
 
   // Linear binning for counter histograms
+  // 注: α 等高 LET 粒子在核内可产生数万~数十万 hit, 上限需足够大以免溢出致 mean 失真
   G4int minCount = 0;
-  G4int maxCount = 20000;
+  G4int maxCount = 500000;
   G4int nBinsCount = (maxCount - minCount) / 100;
 
   // Create histograms

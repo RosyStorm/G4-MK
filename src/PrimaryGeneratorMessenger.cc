@@ -51,6 +51,17 @@ PrimaryGeneratorMessenger::PrimaryGeneratorMessenger(
   fZ0Cmd->SetDefaultUnit("cm");
   fZ0Cmd->SetUnitCategory("Length");
   fZ0Cmd->AvailableForStates(G4State_PreInit, G4State_Idle);
+
+  fSourceDir = std::make_unique<G4UIdirectory>("/source/");
+  fSourceDir->SetGuidance("Particle source type control");
+
+  fSourceTypeCmd = std::make_unique<G4UIcmdWithAString>("/source/type", this);
+  fSourceTypeCmd->SetGuidance(
+    "Source type: proton (baseline) | ac225 (Ac-225 alpha from cell membrane)");
+  fSourceTypeCmd->SetParameterName("type", false);
+  fSourceTypeCmd->SetCandidates("proton ac225");
+  fSourceTypeCmd->SetDefaultValue("ac225");
+  fSourceTypeCmd->AvailableForStates(G4State_PreInit, G4State_Idle);
 }
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
@@ -64,6 +75,9 @@ void PrimaryGeneratorMessenger::SetNewValue(G4UIcommand* command,
 {
   if (command == fZ0Cmd.get()) {
     fPrimaryAction->SetPositionZ(fZ0Cmd->GetNewDoubleValue(newValue));
+  }
+  if (command == fSourceTypeCmd.get()) {
+    fPrimaryAction->SetSourceType(newValue);
   }
 }
 

@@ -84,23 +84,16 @@ G4bool TrackerSD::ProcessHits(G4Step* aStep, G4TouchableHistory*)
   // Get ParentID
   G4int parentID = aTrack->GetParentID();
 
-  // Only for primary particles
+  // Only for primary particles: 记录核边界入射/出射动能
+  // 注: 用 fGeomBoundary 状态位判定。对 DNA 物理下的 α 离子边界步该状态位可能不触发,
+  //     故 α 的 T_in/T_out 可能为空(诊断量, 不影响 z/y/ε 打分)。
+  //     若任务6.2 需精确能量平衡, 改用 G4UserSteppingAction 按体积过渡判定。
   if (parentID == 0) {
-    // Check if the particle is entering or exiting
     if (preStepPoint->GetStepStatus() == fGeomBoundary) {
-      // Get the pre-step energy
-      G4double preEnergy = preStepPoint->GetKineticEnergy();
-
-      // Fill the histogram
-      G4AnalysisManager::Instance()->FillH1(12, preEnergy);
+      G4AnalysisManager::Instance()->FillH1(12, preStepPoint->GetKineticEnergy());
     }
-
     if (postStepPoint->GetStepStatus() == fGeomBoundary) {
-      // Get the post-step energy
-      G4double postEnergy = postStepPoint->GetKineticEnergy();
-
-      // Fill the histogram
-      G4AnalysisManager::Instance()->FillH1(13, postEnergy);
+      G4AnalysisManager::Instance()->FillH1(13, postStepPoint->GetKineticEnergy());
     }
   }
 

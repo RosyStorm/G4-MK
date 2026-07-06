@@ -1,7 +1,6 @@
 #===============================#
-# Cell geometry validation run  #
-# 任务1.1：同心球细胞几何验证    #
-# 质子穿过细胞核，确认几何/打分正确 #
+# Ac-225 alpha source test      #
+# 任务2.1：膜面 Ac-225 α 源机制验证 #
 #===============================#
 
 /control/verbose 0
@@ -13,9 +12,8 @@
 ###########################
 ### SETUP CONFIGURATION ###
 ###########################
-### 同心球几何：World(水盒) -> Cell(R_cell) -> Nucleus(R_n)
-### maxRange 决定细胞外水层厚度(次级电子平衡)；世界半边长 = R_cell + maxRange
-/mygeom/maxRange        49. um
+### 同心球几何；maxRange=100 使世界半边长=R_cell+maxRange=110um > α射程(~90um)
+/mygeom/maxRange        100. um
 /mygeom/material        G4_WATER
 /mygeom/cellRadius      10. um
 /mygeom/nucleusRadius    8. um
@@ -41,14 +39,13 @@
 /run/numberOfThreads 8
 /run/initialize
 
-######################################################
-### BEAM PROPERTIES (must be after Initialization) ###
-######################################################
-### 质子从 z0=-50.99 um 出发(世界半边长59um内)，到达核中心约20 MeV
-/source/type        proton     ## 基线(默认已改为 ac225)
-/gun/particle       proton
-/gun/energy         20.13 MeV  ## Energy compensation from (dE/dz)*Z0
-/beam/position/Z0   -50.99 um
+#################################################
+### SOURCE (Ac-225) — 须在 initialize 之后       #
+#################################################
+### /source/type 命令由 PrimaryGeneratorMessenger 注册，
+### 该 messenger 随 PrimaryGeneratorAction 在 initialize 时构造。
+### 膜面均匀随机点 + 各向同性 + Ac-225 α 能量抽样(一个α一个事件)
+/source/type ac225
 
 #######################
 ### PRODUCTION CUTS ###
@@ -57,4 +54,5 @@
 /run/particle/applyCuts true gamma
 
 
-/run/beamOn 500
+### 先用少量事件做机制+计时测试(α+DNA物理较慢，视耗时再扩量)
+/run/beamOn 20
