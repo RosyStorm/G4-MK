@@ -1,0 +1,63 @@
+# ============================================================
+# Geant4 / CMake microtrack project — .gitignore
+# ============================================================
+
+# ----- 构建目录（out-of-source build）-----
+build/
+
+# ----- CMake 产物（防止在源目录内构建时的残留）-----
+CMakeCache.txt
+CMakeFiles/
+CMakeScripts/
+cmake_install.cmake
+CTestTestfile.cmake
+Makefile
+install_manifest.txt
+
+# compile_commands.json 是指向 build/ 的符号链接，由 CMake 生成
+compile_commands.json
+
+# ----- 编译目标文件 / 可执行文件 -----
+*.o
+*.obj
+*.so
+*.a
+*.dylib
+*.exe
+/microtrack
+
+# ----- Geant4 分析 / 模拟输出文件 -----
+*.root
+*.csv
+*.ntuple
+*.xml
+*.hdf5
+*.g4analysis
+
+# ----- 运行日志 / 捕获输出 -----
+*.out
+microtrack.out
+G4History.macro
+
+# ----- Geant4 可视化导出 -----
+*.heprep
+*.hepevent
+*.prim
+*.wrl
+*.vrml
+*.eps
+
+# ----- 编辑器 / IDE 临时文件 -----
+*~
+\#*\#
+.\#*
+.*.swp
+*.swp
+*.swo
+*.bak
+*.kate-swp
+
+# ----- 操作系统 -----
+.DS_Store
+Thumbs.db
+desktop.ini
