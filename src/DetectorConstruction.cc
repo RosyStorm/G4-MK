@@ -25,12 +25,16 @@
 //
 /// \file DetectorConstruction.cc
 /// \brief Implementation of the DetectorConstruction class
+///
+/// 细胞几何：同心球结构 World(水盒) -> Cell(细胞膜边界) -> Nucleus(细胞核)
+/// 敏感探测器(SD)置于细胞核，域采样与核打分均在核内进行。
+/// 当前所有体积均为液态水（核成分后续可细化）。
 
 #include "DetectorConstruction.hh"
 
 #include "G4Box.hh"
+#include "G4Orb.hh"
 #include "G4Exception.hh"
-#include "G4GeometryManager.hh"
 #include "G4Material.hh"
 #include "G4NistManager.hh"
 #include "G4PVPlacement.hh"
@@ -63,9 +67,8 @@ G4VPhysicalVolume* DetectorConstruction::Construct()
   // Define the materials
   DefineMaterials();
 
-  // Define volumes
+  // Define volumes: 世界内含细胞，细胞内含细胞核
   G4VPhysicalVolume* World = DefineWorld();
-  DefineSD(World);  // SD is placed inside the world volume
   return World;
 }
 
@@ -94,30 +97,30 @@ void DetectorConstruction::CheckConsistency()
         << "Please consider using the formula by Tabata for the calculation "
         << "of the maximum range of secondary electrons:\n"
         << "\t https://doi.org/10.1016/0029-554X(72)90463-6" << G4endl
-        << "Note: This parameter affects the world volume size only along "
-        << "the z-axis.\n"
-        << "Sizes along x- and y-axes are set by fHitSelRegXY and the "
-        << "site radius." << G4endl;
+        << "Note: 此参数决定世界体积在细胞外的水层厚度（次级电子平衡）。"
+        << G4endl;
     G4Exception("DetectorConstruction::CheckConsistency()", "DetCons0001",
                 FatalException, msg);
   }
-  if (!(fHitSelRegZ > 0.)) {
+  if (!(fNucleusRadius > 0.)) {
     G4ExceptionDescription msg;
-    msg << "fHitSelRegZ must be > 0.\n"
-        << "Otherwise, no hits are eligible to set randomly the site "
-        << "position using the weighted method.\n"
-        << G4endl;
+    msg << "fNucleusRadius must be > 0.\n"
+        << "细胞核半径必须为正，否则无法在核内放置采样位点。" << G4endl;
     G4Exception("DetectorConstruction::CheckConsistency()", "DetCons0002",
                 FatalException, msg);
   }
-  if (!(fHitSelRegXY > 0.)) {
+  if (!(fCellRadius > fNucleusRadius)) {
     G4ExceptionDescription msg;
-    msg << "fHitSelRegXY must be > 0.\n"
-        << "Otherwise, no hits are eligible to set randomly the site "
-        << "position using the weighted method." << G4endl
-        << "Note: This parameter, together with the site radius, sets the "
-        << "world volume size along the xy-axes." << G4endl;
+    msg << "fCellRadius must be > fNucleusRadius.\n"
+        << "细胞半径必须大于细胞核半径（同心球结构）。" << G4endl;
     G4Exception("DetectorConstruction::CheckConsistency()", "DetCons0003",
+                FatalException, msg);
+  }
+  if (!(fSiteRadius > 0. && fSiteRadius <= fNucleusRadius)) {
+    G4ExceptionDescription msg;
+    msg << "fSiteRadius must be > 0 and <= fNucleusRadius.\n"
+        << "域(site)半径必须为正且不大于细胞核半径。" << G4endl;
+    G4Exception("DetectorConstruction::CheckConsistency()", "DetCons0004",
                 FatalException, msg);
   }
 }
@@ -129,15 +132,17 @@ G4VPhysicalVolume* DetectorConstruction::DefineWorld()
   // Ensure geometry consistency
   CheckConsistency();
 
-  // Define the world volume
+  // 世界为水盒，半边长 = 细胞半径 + 次级电子最大射程
+  // 保证细胞外有足够水层维持次级电子平衡
+  G4double WorldHalf = fCellRadius + fMaxRange;
 
-  G4double WorldZ = fHitSelRegZ + 4. * fSiteRadius + 2. * fMaxRange;
-  G4double WorldXY = fHitSelRegXY + 4. * fSiteRadius;
-
-  auto* sWorld = new G4Box("World", WorldXY / 2., WorldXY / 2., WorldZ / 2.);
+  auto* sWorld = new G4Box("World", WorldHalf, WorldHalf, WorldHalf);
   auto* lWorld = new G4LogicalVolume(sWorld, fMat, "World", 0, 0, 0);
   G4VPhysicalVolume* World =
     new G4PVPlacement(0, G4ThreeVector(), lWorld, "World", nullptr, false, 0);
+
+  // 细胞球置于世界内（位于原点）
+  DefineCell(World);
 
   // Print the world volume information
   PrintParameters(World);
@@ -148,30 +153,47 @@ G4VPhysicalVolume* DetectorConstruction::DefineWorld()
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
 
 G4VPhysicalVolume*
-DetectorConstruction::DefineSD(G4VPhysicalVolume* mother) const
+DetectorConstruction::DefineCell(G4VPhysicalVolume* mother)
 {
-  // Define the sensitive detector volume
+  // 细胞(膜边界)球，材料为水（胞质近似），中心位于原点
+  auto* sCell = new G4Orb("Cell", fCellRadius);
+  auto* lCell = new G4LogicalVolume(sCell, fMat, "Cell", 0, 0, 0);
+  G4VPhysicalVolume* Cell = new G4PVPlacement(
+    0, G4ThreeVector(), lCell, "Cell", mother->GetLogicalVolume(), false, 0);
 
-  G4double SensDetZ = fHitSelRegZ + 4. * fSiteRadius;
-  G4double SensDetXY = fHitSelRegXY + 4. * fSiteRadius;
+  // 细胞核球置于细胞内（位于原点）
+  DefineNucleus(Cell);
 
-  auto* sSDbox =
-    new G4Box("SDbox", SensDetXY / 2., SensDetXY / 2., SensDetZ / 2.);
-  auto* lSDbox = new G4LogicalVolume(sSDbox, fMat, "SDbox", 0, 0, 0);
-  G4VPhysicalVolume* SDbox = new G4PVPlacement(
-    0, G4ThreeVector(), lSDbox, "SDbox", mother->GetLogicalVolume(), false, 0);
-  // Print the sensitive detector volume information
-  PrintParameters(SDbox);
+  // Print the cell volume information
+  PrintParameters(Cell);
 
-  return SDbox;
+  return Cell;
+}
+
+//....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
+
+G4VPhysicalVolume*
+DetectorConstruction::DefineNucleus(G4VPhysicalVolume* mother)
+{
+  // 细胞核球，材料为水（核成分暂以水近似），中心位于原点
+  auto* sNucleus = new G4Orb("Nucleus", fNucleusRadius);
+  auto* lNucleus = new G4LogicalVolume(sNucleus, fMat, "Nucleus", 0, 0, 0);
+  G4VPhysicalVolume* Nucleus =
+    new G4PVPlacement(0, G4ThreeVector(), lNucleus, "Nucleus",
+                      mother->GetLogicalVolume(), false, 0);
+
+  // Print the nucleus volume information
+  PrintParameters(Nucleus);
+
+  return Nucleus;
 }
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
 
 void DetectorConstruction::ConstructSDandField()
 {
-  // Sensitive Detector
-  G4String SDname = "SDbox";
+  // 敏感探测器置于细胞核：域级采样与核级打分均在核内进行
+  G4String SDname = "Nucleus";
 
   auto* aSD = new TrackerSD(SDname, "TrackerHitColl");
 
@@ -179,8 +201,8 @@ void DetectorConstruction::ConstructSDandField()
   G4SDManager* SDMan = G4SDManager::GetSDMpointer();
   SDMan->AddNewDetector(aSD);
 
-  // Set the SD to the logical volume
-  SetSensitiveDetector("SDbox", aSD, true);
+  // Set the SD to the Nucleus logical volume
+  SetSensitiveDetector("Nucleus", aSD, true);
 }
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
@@ -228,6 +250,10 @@ void DetectorConstruction::PrintParameters(G4VPhysicalVolume* physVol) const
     G4cout << "Dimensions (full): " << 2 * box->GetXHalfLength() / mm << " x "
            << 2 * box->GetYHalfLength() / mm << " x "
            << 2 * box->GetZHalfLength() / mm << " mm" << G4endl;
+  }
+  else if (auto orb = dynamic_cast<G4Orb*>(solid)) {
+    G4cout << "Shape: Orb (sphere)" << G4endl;
+    G4cout << "Radius: " << orb->GetRadius() / um << " um" << G4endl;
   }
   else {
     G4cout << "Shape: Unknown or not handled yet." << G4endl;

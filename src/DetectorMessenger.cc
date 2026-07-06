@@ -52,26 +52,26 @@ DetectorMessenger::DetectorMessenger(DetectorConstruction* myDet)
   fMaxRangeCmd->SetUnitCandidates("um mm cm");
   fMaxRangeCmd->AvailableForStates(G4State_PreInit, G4State_Idle);
 
-  fHitSelRegZCmd =
-    std::make_unique<G4UIcmdWithADoubleAndUnit>("/mygeom/hitSelRegZ", this);
-  fHitSelRegZCmd->SetGuidance("Size of the hit selection region in Z");
-  fHitSelRegZCmd->SetParameterName("side", false);
-  fHitSelRegZCmd->SetDefaultUnit("mm");
-  fHitSelRegZCmd->SetUnitCandidates("um mm cm");
-  fHitSelRegZCmd->AvailableForStates(G4State_PreInit, G4State_Idle);
+  fCellRadiusCmd =
+    std::make_unique<G4UIcmdWithADoubleAndUnit>("/mygeom/cellRadius", this);
+  fCellRadiusCmd->SetGuidance("Radius of the cell (membrane boundary)");
+  fCellRadiusCmd->SetParameterName("radius", false);
+  fCellRadiusCmd->SetDefaultUnit("um");
+  fCellRadiusCmd->SetUnitCandidates("nm um mm cm");
+  fCellRadiusCmd->AvailableForStates(G4State_PreInit, G4State_Idle);
 
   fMatNameCmd = std::make_unique<G4UIcmdWithAString>("/mygeom/material", this);
   fMatNameCmd->SetGuidance("Name of the material.");
   fMatNameCmd->SetParameterName("name", false);
   fMatNameCmd->AvailableForStates(G4State_PreInit);
 
-  fHitSelRegXYCmd =
-    std::make_unique<G4UIcmdWithADoubleAndUnit>("/mygeom/hitSelRegXY", this);
-  fHitSelRegXYCmd->SetGuidance("Size of the hit selection region in XY");
-  fHitSelRegXYCmd->SetParameterName("side", false);
-  fHitSelRegXYCmd->SetDefaultUnit("mm");
-  fHitSelRegXYCmd->SetUnitCandidates("um mm cm");
-  fHitSelRegXYCmd->AvailableForStates(G4State_PreInit, G4State_Idle);
+  fNucleusRadiusCmd =
+    std::make_unique<G4UIcmdWithADoubleAndUnit>("/mygeom/nucleusRadius", this);
+  fNucleusRadiusCmd->SetGuidance("Radius of the cell nucleus (domain scoring region)");
+  fNucleusRadiusCmd->SetParameterName("radius", false);
+  fNucleusRadiusCmd->SetDefaultUnit("um");
+  fNucleusRadiusCmd->SetUnitCandidates("nm um mm cm");
+  fNucleusRadiusCmd->AvailableForStates(G4State_PreInit, G4State_Idle);
 
   fSiteRadiusCmd =
     std::make_unique<G4UIcmdWithADoubleAndUnit>("/mygeom/siteRadius", this);
@@ -96,11 +96,11 @@ void DetectorMessenger::SetNewValue(G4UIcommand* command, G4String newValue)
   else if (command == fMatNameCmd.get()) {
     fDetector->SetMaterial(newValue);
   }
-  else if (command == fHitSelRegZCmd.get()) {
-    fDetector->SetHitSelRegZ(fHitSelRegZCmd->GetNewDoubleValue(newValue));
+  else if (command == fCellRadiusCmd.get()) {
+    fDetector->SetCellRadius(fCellRadiusCmd->GetNewDoubleValue(newValue));
   }
-  else if (command == fHitSelRegXYCmd.get()) {
-    fDetector->SetHitSelRegXY(fHitSelRegXYCmd->GetNewDoubleValue(newValue));
+  else if (command == fNucleusRadiusCmd.get()) {
+    fDetector->SetNucleusRadius(fNucleusRadiusCmd->GetNewDoubleValue(newValue));
   }
   else if (command == fSiteRadiusCmd.get()) {
     fDetector->SetSiteRadius(fSiteRadiusCmd->GetNewDoubleValue(newValue));

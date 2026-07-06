@@ -52,8 +52,8 @@ class DetectorMessenger : public G4UImessenger
     std::unique_ptr<G4UIdirectory> fDetectorDir;
     std::unique_ptr<G4UIcmdWithADoubleAndUnit> fMaxRangeCmd;
     std::unique_ptr<G4UIcmdWithAString> fMatNameCmd;
-    std::unique_ptr<G4UIcmdWithADoubleAndUnit> fHitSelRegZCmd;
-    std::unique_ptr<G4UIcmdWithADoubleAndUnit> fHitSelRegXYCmd;
+    std::unique_ptr<G4UIcmdWithADoubleAndUnit> fCellRadiusCmd;
+    std::unique_ptr<G4UIcmdWithADoubleAndUnit> fNucleusRadiusCmd;
     std::unique_ptr<G4UIcmdWithADoubleAndUnit> fSiteRadiusCmd;
 };
 

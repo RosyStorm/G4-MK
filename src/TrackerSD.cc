@@ -140,8 +140,7 @@ void TrackerSD::EndOfEvent(G4HCofThisEvent*)
       G4RunManager::GetRunManager()->GetUserDetectorConstruction());
 
   // Declare variables for the dimensions of the detector
-  G4double HitSelRegZ = 0.;
-  G4double HitSelRegXY = 0.;
+  G4double nucleusRadius = 0.;
   G4double site_radius = 0.;
   G4double DetDensity = 0.;
   G4ThreeVector hitPos;
@@ -149,8 +148,7 @@ void TrackerSD::EndOfEvent(G4HCofThisEvent*)
 
   if (detConstruction) {
     site_radius = detConstruction->GetSiteRadius();
-    HitSelRegZ = detConstruction->GetHitSelRegZ();
-    HitSelRegXY = detConstruction->GetHitSelRegXY();
+    nucleusRadius = detConstruction->GetNucleusRadius();
     auto mat = G4Material::GetMaterial(detConstruction->GetMaterial());
     if (mat)
       DetDensity = mat->GetDensity();
@@ -182,12 +180,8 @@ void TrackerSD::EndOfEvent(G4HCofThisEvent*)
       auto hit = (*fHitsCollection)[randHit];
       G4ThreeVector hitPosition = hit->GetPosition();
 
-      if (hitPosition.x() > -HitSelRegXY / 2
-          && hitPosition.x() < HitSelRegXY / 2
-          && hitPosition.y() > -HitSelRegXY / 2
-          && hitPosition.y() < HitSelRegXY / 2
-          && hitPosition.z() > -HitSelRegZ / 2
-          && hitPosition.z() < HitSelRegZ / 2)
+      // 判定该 hit 是否落在细胞核内（核球为 hit 选择区）
+      if (hitPosition.mag() < nucleusRadius)
       {
         hitPos = hitPosition;  // store valid hit position
 
@@ -214,9 +208,9 @@ void TrackerSD::EndOfEvent(G4HCofThisEvent*)
 
     else {
       G4cout
-        << "In this event, no hits were found in the hit selection "
-        << "region after trying " << tries << " times." << G4endl
-        << "Please consider increasing the size of the hit selection region."
+        << "In this event, no hits were found in the nucleus "
+        << "after trying " << tries << " times." << G4endl
+        << "Please consider checking the source position / nucleus radius."
         << G4endl;
       return;  // Skip analysis if no valid hit was found
     }
@@ -227,12 +221,8 @@ void TrackerSD::EndOfEvent(G4HCofThisEvent*)
     auto hit2 = (*fHitsCollection)[jj];
     G4ThreeVector hit2Position = hit2->GetPosition();
 
-    G4bool inSlab =
-      (hit2Position.x() > -HitSelRegXY / 2 && hit2Position.x() < HitSelRegXY / 2
-       && hit2Position.y() > -HitSelRegXY / 2
-       && hit2Position.y() < HitSelRegXY / 2
-       && hit2Position.z() > -HitSelRegZ / 2
-       && hit2Position.z() < HitSelRegZ / 2);
+    // 判定该 hit 是否落在细胞核内
+    G4bool inNucleus = (hit2Position.mag() < nucleusRadius);
 
     // Check if the hit is within the site
     G4double dist = (hit2Position - randCenterPos).mag();
@@ -241,11 +231,11 @@ void TrackerSD::EndOfEvent(G4HCofThisEvent*)
       evtEdep += hit2->GetEdep();
     }
 
-    // Check if the hit is within the selection region
-    if (inSlab) nHsel++;
+    // Check if the hit is within the nucleus
+    if (inNucleus) nHsel++;
 
-    // Check if the hit is within the selection region and the site
-    if (dist < site_radius && inSlab) nHint++;
+    // Check if the hit is within the nucleus and the site
+    if (dist < site_radius && inNucleus) nHint++;
   }
 
   // Access the analysis manager

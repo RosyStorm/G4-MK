@@ -289,13 +289,13 @@ void RunAction::EndOfRunAction(const G4Run* /*aRun*/)
            << "  --------------------------------------"
            << G4endl << G4endl;
 
-    G4cout << "    At entrance of SDbox, T_{in}: mean = "
+    G4cout << "    At entrance of Nucleus, T_{in}: mean = "
            << G4BestUnit(analysisManager->GetH1(12)->mean(), "Energy")
            << " (rms = "
            << G4BestUnit(analysisManager->GetH1(12)->rms(), "Energy") << ")"
            << G4endl;
 
-    G4cout << "    At exit of SDbox, T_{out}: mean = "
+    G4cout << "    At exit of Nucleus, T_{out}: mean = "
            << G4BestUnit(analysisManager->GetH1(13)->mean(), "Energy")
            << " (rms = "
            << G4BestUnit(analysisManager->GetH1(13)->rms(), "Energy") << ")"
