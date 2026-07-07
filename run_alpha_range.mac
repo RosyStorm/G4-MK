@@ -1,0 +1,50 @@
+#===================================#
+# Task 3.1: alpha range validation  #
+# 单能 α 射程验证(对比 NIST ASTAR)   #
+#===================================#
+
+/control/verbose 0
+/run/verbose 2
+/tracking/verbose 0
+
+/random/setSeeds 102 001
+
+###########################
+### SETUP CONFIGURATION ###
+###########################
+### 大世界(半边长=R_cell+maxRange=110um > α射程~90um)，确保 α 在世内停止
+/mygeom/maxRange        100. um
+/mygeom/material        G4_WATER
+/mygeom/cellRadius      10. um
+/mygeom/nucleusRadius    8. um
+/mygeom/siteRadius      0.5 um
+
+####################
+### PHYSICS LIST ###
+####################
+/physics/addPhysics dna_opt2
+/run/setCutForAGivenParticle gamma   0.01 um
+/run/setCutForAGivenParticle e-      0.01 um
+/run/setCutForAGivenParticle e+      0.01 um
+/run/setCutForAGivenParticle proton  0.01 um
+
+######################
+### INITIALIZATION ###
+######################
+/run/numberOfThreads 8
+/run/initialize
+
+#############################
+### SOURCE (mono alpha)     #
+#############################
+### 单能 α：能量由 /gun/energy 给(下方 sed 替换)，位置按区室，各向同性
+/source/type alpha
+/source/compartment Membrane
+/gun/particle alpha
+/gun/energy 8.40 MeV     ## 将被 sed 替换为 5.83/6.36/7.07/8.40
+
+/run/particle/applyCuts true e-
+/run/particle/applyCuts true gamma
+
+### 射程直方图(H1[14] alphaRange)由 SteppingAction 填充
+/run/beamOn 100

@@ -23,33 +23,46 @@
 // * acceptance of all terms of the Geant4 Software license.          *
 // ********************************************************************
 //
-/// \file ActionInitialization.cc
-/// \brief Implementation of the ActionInitialization class
+/// \file EventAction.hh
+/// \brief Definition of the EventAction class
+///
+/// 任务3.1：逐事件累计 α 链(He2+→He+→He0 电荷交换子代)相对发射点的最大位移，
+/// 即投影射程，填入 alphaRange 直方图。电荷交换会使原 α 径迹频繁"结束"，
+/// 故必须跨整条链求最大位移，而非只跟初级。
 
-#include "ActionInitialization.hh"
+#ifndef EventAction_h
+#define EventAction_h 1
 
-#include "EventAction.hh"
-#include "PrimaryGeneratorAction.hh"
-#include "RunAction.hh"
-#include "SteppingAction.hh"
+#include "G4ThreeVector.hh"
+#include "G4UserEventAction.hh"
+#include "globals.hh"
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
 
-void ActionInitialization::BuildForMaster() const
+class EventAction : public G4UserEventAction
 {
-  SetUserAction(new RunAction);
-}
+  public:
+    EventAction() = default;
+    ~EventAction() override = default;
+
+    void BeginOfEventAction(const G4Event*) override;
+    void EndOfEventAction(const G4Event*) override;
+
+    // 由 SteppingAction 调用
+    void SetPrimaryVertex(const G4ThreeVector& v)
+    {
+      fPrimaryVertex = v;
+      fHaveVertex = true;
+    }
+    G4bool HaveVertex() const { return fHaveVertex; }
+    void UpdateMaxRange(const G4ThreeVector& pos);
+
+  private:
+    G4ThreeVector fPrimaryVertex{};
+    G4double fMaxRange = 0.;
+    G4bool fHaveVertex = false;
+};
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
 
-void ActionInitialization::Build() const
-{
-  SetUserAction(new PrimaryGeneratorAction);
-  SetUserAction(new RunAction);
-  auto* eventAction = new EventAction;
-  SetUserAction(eventAction);
-  SetUserAction(new SteppingAction(eventAction));
-}
-
-//....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
-
+#endif

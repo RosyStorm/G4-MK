@@ -57,9 +57,10 @@ PrimaryGeneratorMessenger::PrimaryGeneratorMessenger(
 
   fSourceTypeCmd = std::make_unique<G4UIcmdWithAString>("/source/type", this);
   fSourceTypeCmd->SetGuidance(
-    "Source type: proton (baseline) | ac225 (Ac-225 alpha, compartment set by /source/compartment)");
+    "Source type: proton (baseline) | ac225 (Ac-225 alpha, compartment set by /source/compartment)"
+    " | alpha (mono-energetic alpha for range validation, energy from /gun/energy)");
   fSourceTypeCmd->SetParameterName("type", false);
-  fSourceTypeCmd->SetCandidates("proton ac225");
+  fSourceTypeCmd->SetCandidates("proton ac225 alpha");
   fSourceTypeCmd->SetDefaultValue("ac225");
   fSourceTypeCmd->AvailableForStates(G4State_PreInit, G4State_Idle);
 

@@ -23,33 +23,33 @@
 // * acceptance of all terms of the Geant4 Software license.          *
 // ********************************************************************
 //
-/// \file ActionInitialization.cc
-/// \brief Implementation of the ActionInitialization class
+/// \file SteppingAction.hh
+/// \brief Definition of the SteppingAction class
+///
+/// 任务3.1：记录初级 α 粒子停止时的 CSDA 射程(发射点→停止点直线距离)，
+/// 用于与 NIST ASTAR 对比，验证 G4EmDNAPhysics_option2 的 α 输运。
 
-#include "ActionInitialization.hh"
+#ifndef SteppingAction_h
+#define SteppingAction_h 1
 
-#include "EventAction.hh"
-#include "PrimaryGeneratorAction.hh"
-#include "RunAction.hh"
-#include "SteppingAction.hh"
+#include "G4UserSteppingAction.hh"
+
+class EventAction;
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
 
-void ActionInitialization::BuildForMaster() const
+class SteppingAction : public G4UserSteppingAction
 {
-  SetUserAction(new RunAction);
-}
+  public:
+    explicit SteppingAction(EventAction* ea = nullptr) : fEventAction(ea) {}
+    ~SteppingAction() override = default;
+
+    void UserSteppingAction(const G4Step*) override;
+
+  private:
+    EventAction* fEventAction = nullptr;
+};
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
 
-void ActionInitialization::Build() const
-{
-  SetUserAction(new PrimaryGeneratorAction);
-  SetUserAction(new RunAction);
-  auto* eventAction = new EventAction;
-  SetUserAction(eventAction);
-  SetUserAction(new SteppingAction(eventAction));
-}
-
-//....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
-
+#endif

@@ -23,33 +23,43 @@
 // * acceptance of all terms of the Geant4 Software license.          *
 // ********************************************************************
 //
-/// \file ActionInitialization.cc
-/// \brief Implementation of the ActionInitialization class
-
-#include "ActionInitialization.hh"
+/// \file EventAction.cc
+/// \brief Implementation of the EventAction class
 
 #include "EventAction.hh"
-#include "PrimaryGeneratorAction.hh"
-#include "RunAction.hh"
-#include "SteppingAction.hh"
+
+#include "G4AnalysisManager.hh"
+#include "G4Event.hh"
+#include "G4SystemOfUnits.hh"
+#include "globals.hh"
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
 
-void ActionInitialization::BuildForMaster() const
+void EventAction::BeginOfEventAction(const G4Event* /*anEvent*/)
 {
-  SetUserAction(new RunAction);
+  fMaxRange = 0.;
+  fHaveVertex = false;
+  fPrimaryVertex = G4ThreeVector();
 }
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
 
-void ActionInitialization::Build() const
+void EventAction::UpdateMaxRange(const G4ThreeVector& pos)
 {
-  SetUserAction(new PrimaryGeneratorAction);
-  SetUserAction(new RunAction);
-  auto* eventAction = new EventAction;
-  SetUserAction(eventAction);
-  SetUserAction(new SteppingAction(eventAction));
+  if (!fHaveVertex) return;
+  G4double r = (pos - fPrimaryVertex).mag();
+  if (r > fMaxRange) fMaxRange = r;
 }
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
 
+void EventAction::EndOfEventAction(const G4Event* /*anEvent*/)
+{
+  if (fHaveVertex && fMaxRange > 0.) {
+    auto* am = G4AnalysisManager::Instance();
+    G4int id = am->GetH1Id("alphaRange");
+    if (id >= 0) am->FillH1(id, fMaxRange / um);
+  }
+}
+
+//....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......

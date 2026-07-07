@@ -161,6 +161,11 @@ RunAction::RunAction()
     "Nsite_vs_e",
     "Number of hits in site vs energy imparted [keV] (log-log)",
     vecBinsLog10E, vecBinsLog10W);
+
+  // 任务3.1：初级 α 的 CSDA 射程(与 NIST ASTAR 对比)
+  analysisManager->CreateH1(
+    "alphaRange", "Primary alpha CSDA range [um] (task 3.1)",
+    240, 0., 120.);
 }
 
 

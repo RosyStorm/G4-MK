@@ -94,6 +94,22 @@ void PrimaryGeneratorAction::GeneratePrimaries(G4Event* anEvent)
              << "  dir=" << dir << G4endl;
     }
   }
+  else if (fSourceType == "alpha") {
+    // ----- 单能 α 验证模式(任务3.1)：能量由 /gun/energy 给，位置按区室，各向同性 -----
+    G4ThreeVector pos = SampleSourcePosition();
+    G4ThreeVector dir = SampleIsotropicDirection();
+
+    fParticleGun->SetParticleDefinition(fAlpha);
+    fParticleGun->SetParticlePosition(pos);
+    fParticleGun->SetParticleMomentumDirection(dir);
+
+    if (anEvent->GetEventID() < 5) {
+      G4cout << "[alpha] event " << anEvent->GetEventID()
+             << "  comp=" << fCompartment
+             << "  |pos|=" << pos.mag() / um << " um"
+             << "  dir=" << dir << G4endl;
+    }
+  }
   else {
     // ----- proton 模式：保持原有基线行为 -----
     fParticleGun->SetParticlePosition(G4ThreeVector(fX0, fY0, fZ0));
