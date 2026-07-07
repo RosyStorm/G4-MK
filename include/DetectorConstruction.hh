@@ -57,6 +57,7 @@ class DetectorConstruction : public G4VUserDetectorConstruction
     void SetNucleusRadius(const G4double& r) { fNucleusRadius = r; }
     void SetSiteRadius(const G4double& siteRadius) { fSiteRadius = siteRadius; }
     void SetKillOutsideCell(G4bool v) { fKillOutsideCell = v; }
+    void SetKillAtNucleus(G4bool v) { fKillAtNucleus = v; }
     void PrintParameters(G4VPhysicalVolume*) const;
     void CheckConsistency();
 
@@ -70,6 +71,7 @@ class DetectorConstruction : public G4VUserDetectorConstruction
     G4double GetNucleusRadius() const { return fNucleusRadius; }
     G4double GetSiteRadius() const { return fSiteRadius; }
     G4bool GetKillOutsideCell() const { return fKillOutsideCell; }
+    G4bool GetKillAtNucleus() const { return fKillAtNucleus; }
 
   private:
     void DefineMaterials();
@@ -84,6 +86,7 @@ class DetectorConstruction : public G4VUserDetectorConstruction
     G4double fNucleusRadius = 8. * um;    // 细胞核半径 R_n
     G4double fSiteRadius = 0.5 * um;      // 域(site)半径 r_d
     G4bool fKillOutsideCell = true;       // 加速:出细胞且向外运动的粒子 kill 掉(产线默认开,射程验证需关)
+    G4bool fKillAtNucleus = true;         // kill 半径取 R_n(默认,更快) 还是 R_cell
 };
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......

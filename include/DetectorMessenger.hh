@@ -57,6 +57,7 @@ class DetectorMessenger : public G4UImessenger
     std::unique_ptr<G4UIcmdWithADoubleAndUnit> fNucleusRadiusCmd;
     std::unique_ptr<G4UIcmdWithADoubleAndUnit> fSiteRadiusCmd;
     std::unique_ptr<G4UIcmdWithABool> fKillOutsideCellCmd;
+    std::unique_ptr<G4UIcmdWithABool> fKillAtNucleusCmd;
 };
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......

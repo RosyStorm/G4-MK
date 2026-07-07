@@ -175,6 +175,23 @@ RunAction::RunAction()
     "znfzn", "Dose-weighted z_n [Gy] (log binning)", vecBinsLog10E);
   analysisManager->CreateH1(
     "z2nfzn", "Squared-weighted z_n [Gy] (log binning)", vecBinsLog10E);
+
+  // 任务4.2：逐事件配对 ntuple —— 每事件一行，hit/miss 都填
+  // 后处理(ROOT)可算 z_d/z_n 边缘谱、联合分布、条件 f(z_d|z_n)、多事件卷积与 SMK 存活曲线
+  analysisManager->CreateNtuple("events", "Per-event microdosimetry (task 4.2)");
+  analysisManager->CreateNtupleIColumn("eventID");        // 0
+  analysisManager->CreateNtupleDColumn("alphaE_MeV");     // 1 初级 α 动能
+  analysisManager->CreateNtupleDColumn("edep_d_keV");     // 2 域内能量沉积 ε_d
+  analysisManager->CreateNtupleDColumn("z_d_Gy");         // 3 域比能 z_d
+  analysisManager->CreateNtupleDColumn("edep_n_keV");     // 4 核内总能量沉积 ε_n
+  analysisManager->CreateNtupleDColumn("z_n_Gy");         // 5 核比能 z_n
+  analysisManager->CreateNtupleDColumn("weight");         // 6 域抽样权 w=Nsel/Nint
+  analysisManager->CreateNtupleIColumn("nHsel");          // 7
+  analysisManager->CreateNtupleIColumn("nHsite");         // 8
+  analysisManager->CreateNtupleIColumn("nHint");          // 9
+  analysisManager->CreateNtupleIColumn("hitFlag");        // 10  1=命中核, 0=miss
+  analysisManager->CreateNtupleIColumn("compartment");    // 11  0=Nuc,1=Cyt,2=Mem,3=Ext
+  analysisManager->FinishNtuple();
 }
 
 

@@ -53,9 +53,12 @@ void SteppingAction::UserSteppingAction(const G4Step* step)
   const auto* det = static_cast<const DetectorConstruction*>(
     G4RunManager::GetRunManager()->GetUserDetectorConstruction());
   if (det && det->GetKillOutsideCell()) {
+    // kill 半径: 默认 R_n(出核即杀, 更快且核打分无偏), 可切回 R_cell
+    G4double Rkill =
+      det->GetKillAtNucleus() ? det->GetNucleusRadius() : det->GetCellRadius();
     G4StepPoint* post = step->GetPostStepPoint();
     G4ThreeVector pos = post->GetPosition();
-    if (pos.mag() > det->GetCellRadius()) {
+    if (pos.mag() > Rkill) {
       if (pos.dot(post->GetMomentumDirection()) > 0.) {
         track->SetTrackStatus(fStopAndKill);
         return;

@@ -91,6 +91,15 @@ DetectorMessenger::DetectorMessenger(DetectorConstruction* myDet)
   fKillOutsideCellCmd->SetParameterName("flag", false);
   fKillOutsideCellCmd->SetDefaultValue(true);
   fKillOutsideCellCmd->AvailableForStates(G4State_PreInit, G4State_Idle);
+
+  fKillAtNucleusCmd =
+    std::make_unique<G4UIcmdWithABool>("/mygeom/killAtNucleus", this);
+  fKillAtNucleusCmd->SetGuidance(
+    "Kill radius: true=R_n (default, faster, nucleus-scoring unbiased),"
+    " false=R_cell.");
+  fKillAtNucleusCmd->SetParameterName("flag2", false);
+  fKillAtNucleusCmd->SetDefaultValue(true);
+  fKillAtNucleusCmd->AvailableForStates(G4State_PreInit, G4State_Idle);
 }
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
@@ -118,6 +127,9 @@ void DetectorMessenger::SetNewValue(G4UIcommand* command, G4String newValue)
   }
   else if (command == fKillOutsideCellCmd.get()) {
     fDetector->SetKillOutsideCell(fKillOutsideCellCmd->GetNewBoolValue(newValue));
+  }
+  else if (command == fKillAtNucleusCmd.get()) {
+    fDetector->SetKillAtNucleus(fKillAtNucleusCmd->GetNewBoolValue(newValue));
   }
 }
 

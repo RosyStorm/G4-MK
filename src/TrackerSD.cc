@@ -29,8 +29,11 @@
 #include "TrackerSD.hh"
 
 #include "G4AnalysisManager.hh"
+#include "G4Event.hh"
 #include "G4Exception.hh"
 #include "G4ParticleDefinition.hh"
+#include "G4PrimaryParticle.hh"
+#include "G4PrimaryVertex.hh"
 #include "G4ProcessType.hh"
 #include "G4RunManager.hh"
 #include "G4SDManager.hh"
@@ -42,6 +45,7 @@
 #include "globals.hh"
 
 #include "DetectorConstruction.hh"
+#include "PrimaryGeneratorAction.hh"
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
 TrackerSD::TrackerSD(const G4String& sdName, const G4String& hitsCollectionName,
@@ -127,8 +131,8 @@ void TrackerSD::EndOfEvent(G4HCofThisEvent*)
            << " hits in the tracker." << G4endl;
   }
 
-  // 本事件无核内沉积(如膜/胞外源 α 未命中核)：单事件谱 f_{n,1} 不含 miss 事件，直接返回
-  if (nofHits == 0) return;
+  // 注：miss 事件(nofHits==0, 如膜/胞外源 α 未命中核)不再早返回——
+  // ntuple 用 hitFlag=0 记录(任务4.2)；直方图 f_{n,1} 由各 if(nucleusEdep>0)/if(nHint>0) 自然过滤。
 
   // Get the DetectorConstruction instance
   const DetectorConstruction* detConstruction =
@@ -310,10 +314,41 @@ void TrackerSD::EndOfEvent(G4HCofThisEvent*)
     // Histogram 14: Number of hits in site vs Energy imparted per event
     analysisManager->FillH2(0, evtEdep / keV, nHsite, 1.);
   }
-  else {
-    G4ExceptionDescription msg;
-    msg << "In this event, we had nHint == 0. "
-        << "Something unexpected has occurred." << G4endl;
-    G4Exception("TrackerSD::EndOfEvent()", "TrackerSD003", JustWarning, msg);
+  // (else: miss 事件 nofHits==0 —— 对膜/胞外源属正常, 不再警告; ntuple 用 hitFlag=0 记录)
+
+  // ===== 任务4.2：逐事件配对 ntuple (hit & miss 都填一行) =====
+  // 取初级 α 动能(从 primary vertex)与区室编号(从 PrimaryGeneratorAction)
+  G4double alphaE = 0.;
+  const G4Event* evt = G4RunManager::GetRunManager()->GetCurrentEvent();
+  if (evt && evt->GetNumberOfPrimaryVertex() > 0) {
+    const G4PrimaryVertex* pv = evt->GetPrimaryVertex(0);
+    if (pv) {
+      const G4PrimaryParticle* pp = pv->GetPrimary(0);
+      if (pp) alphaE = pp->GetKineticEnergy();
+    }
   }
+  G4int compId = 4;  // 未知
+  const auto* pga = dynamic_cast<const PrimaryGeneratorAction*>(
+    G4RunManager::GetRunManager()->GetUserPrimaryGeneratorAction());
+  if (pga) {
+    const G4String c = pga->GetCompartment();
+    if (c == "Nucleus") compId = 0;
+    else if (c == "Cytoplasm") compId = 1;
+    else if (c == "Membrane") compId = 2;
+    else if (c == "Extracellular") compId = 3;
+  }
+  G4double wght = (nHint > 0) ? G4double(nHsel) / G4double(nHint) : 0.;
+  analysisManager->FillNtupleIColumn(0, evt ? evt->GetEventID() : 0);
+  analysisManager->FillNtupleDColumn(1, alphaE / MeV);
+  analysisManager->FillNtupleDColumn(2, evtEdep / keV);
+  analysisManager->FillNtupleDColumn(3, z / gray);          // z_d
+  analysisManager->FillNtupleDColumn(4, nucleusEdep / keV);
+  analysisManager->FillNtupleDColumn(5, z_n / gray);        // z_n
+  analysisManager->FillNtupleDColumn(6, wght);
+  analysisManager->FillNtupleIColumn(7, nHsel);
+  analysisManager->FillNtupleIColumn(8, nHsite);
+  analysisManager->FillNtupleIColumn(9, nHint);
+  analysisManager->FillNtupleIColumn(10, nofHits > 0 ? 1 : 0);  // hitFlag
+  analysisManager->FillNtupleIColumn(11, compId);               // compartment
+  analysisManager->AddNtupleRow();
 }

@@ -20,6 +20,8 @@
 /mygeom/siteRadius      0.5 um
 ### 加速: 出细胞且向外运动的粒子直接 kill(核打分无需核外输运；α 射程验证须设 false)
 /mygeom/killOutsideCell true
+### kill 半径取 R_n(出核即杀,默认,更快) 还是 R_cell
+/mygeom/killAtNucleus true
 
 
 ####################
@@ -38,7 +40,7 @@
 ######################
 ### INITIALIZATION ###
 ######################
-/run/numberOfThreads 12
+/run/numberOfThreads 16
 /run/initialize
 
 #################################################
