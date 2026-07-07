@@ -1,6 +1,6 @@
 #===============================#
-# Ac-225 alpha source test      #
-# 任务2.1：膜面 Ac-225 α 源机制验证 #
+# Ac-225 alpha source (production)#
+# 膜面 Ac-225 α 源 + 出细胞即杀加速  #
 #===============================#
 
 /control/verbose 0
@@ -12,12 +12,14 @@
 ###########################
 ### SETUP CONFIGURATION ###
 ###########################
-### 同心球几何；maxRange=100 使世界半边长=R_cell+maxRange=110um > α射程(~90um)
+### 同心球几何；maxRange=100 使世界半边长=R_cell+maxRange=110um
 /mygeom/maxRange        100. um
 /mygeom/material        G4_WATER
 /mygeom/cellRadius      10. um
 /mygeom/nucleusRadius    8. um
 /mygeom/siteRadius      0.5 um
+### 加速: 出细胞且向外运动的粒子直接 kill(核打分无需核外输运；α 射程验证须设 false)
+/mygeom/killOutsideCell true
 
 
 ####################
@@ -36,7 +38,7 @@
 ######################
 ### INITIALIZATION ###
 ######################
-/run/numberOfThreads 8
+/run/numberOfThreads 12
 /run/initialize
 
 #################################################

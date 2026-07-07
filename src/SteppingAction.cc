@@ -32,8 +32,10 @@
 
 #include "SteppingAction.hh"
 
+#include "DetectorConstruction.hh"
 #include "EventAction.hh"
 #include "G4Alpha.hh"
+#include "G4RunManager.hh"
 #include "G4Step.hh"
 #include "G4StepPoint.hh"
 #include "G4Track.hh"
@@ -42,8 +44,27 @@
 
 void SteppingAction::UserSteppingAction(const G4Step* step)
 {
+  G4Track* track = step->GetTrack();
+
+  // ===== #1 加速: 出细胞(R_cell)且向外运动的粒子直接 kill =====
+  // 核级/域级打分都在核内, 核外输运对结果无贡献。
+  // 用 pos·dir>0 判定"向外", 以保留胞外源向内射入细胞的 α(交叉照射)。
+  // 注意: 这会截断 α 射程, 故 α 射程验证(任务3.1)须把 /mygeom/killOutsideCell 设 false。
+  const auto* det = static_cast<const DetectorConstruction*>(
+    G4RunManager::GetRunManager()->GetUserDetectorConstruction());
+  if (det && det->GetKillOutsideCell()) {
+    G4StepPoint* post = step->GetPostStepPoint();
+    G4ThreeVector pos = post->GetPosition();
+    if (pos.mag() > det->GetCellRadius()) {
+      if (pos.dot(post->GetMomentumDirection()) > 0.) {
+        track->SetTrackStatus(fStopAndKill);
+        return;
+      }
+    }
+  }
+
+  // ===== 任务3.1: α 链投影射程累计(射程验证时 kill 开关须关) =====
   if (!fEventAction) return;
-  const G4Track* track = step->GetTrack();
 
   // 仅对 α 初级源记录射程：在事件首个初级粒子(应为 α)的第一步登记发射点
   if (!fEventAction->HaveVertex()) {

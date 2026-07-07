@@ -28,6 +28,7 @@
 
 #include "DetectorMessenger.hh"
 
+#include "G4UIcmdWithABool.hh"
 #include "G4UIcmdWithADoubleAndUnit.hh"
 #include "G4UIcmdWithAString.hh"
 #include "globals.hh"
@@ -80,6 +81,16 @@ DetectorMessenger::DetectorMessenger(DetectorConstruction* myDet)
   fSiteRadiusCmd->SetDefaultUnit("um");
   fSiteRadiusCmd->SetUnitCandidates("nm um mm cm");
   fSiteRadiusCmd->AvailableForStates(G4State_PreInit, G4State_Idle);
+
+  fKillOutsideCellCmd =
+    std::make_unique<G4UIcmdWithABool>("/mygeom/killOutsideCell", this);
+  fKillOutsideCellCmd->SetGuidance(
+    "Speed-up switch: kill particles once outside the cell (R_cell) and moving"
+    " outward. Default true for production; set false for alpha range"
+    " validation (task 3.1).");
+  fKillOutsideCellCmd->SetParameterName("flag", false);
+  fKillOutsideCellCmd->SetDefaultValue(true);
+  fKillOutsideCellCmd->AvailableForStates(G4State_PreInit, G4State_Idle);
 }
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
@@ -104,6 +115,9 @@ void DetectorMessenger::SetNewValue(G4UIcommand* command, G4String newValue)
   }
   else if (command == fSiteRadiusCmd.get()) {
     fDetector->SetSiteRadius(fSiteRadiusCmd->GetNewDoubleValue(newValue));
+  }
+  else if (command == fKillOutsideCellCmd.get()) {
+    fDetector->SetKillOutsideCell(fKillOutsideCellCmd->GetNewBoolValue(newValue));
   }
 }
 

@@ -18,6 +18,8 @@
 /mygeom/cellRadius      10. um
 /mygeom/nucleusRadius    8. um
 /mygeom/siteRadius      0.5 um
+### 射程验证必须关闭"出细胞即杀"，否则 α 射程被截断在 R_cell
+/mygeom/killOutsideCell false
 
 ####################
 ### PHYSICS LIST ###

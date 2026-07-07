@@ -31,6 +31,7 @@
 
 #include "G4UImessenger.hh"
 #include "globals.hh"
+#include "G4UIcmdWithABool.hh"
 #include "G4UIcmdWithADoubleAndUnit.hh"
 #include "G4UIcmdWithAString.hh"
 
@@ -55,6 +56,7 @@ class DetectorMessenger : public G4UImessenger
     std::unique_ptr<G4UIcmdWithADoubleAndUnit> fCellRadiusCmd;
     std::unique_ptr<G4UIcmdWithADoubleAndUnit> fNucleusRadiusCmd;
     std::unique_ptr<G4UIcmdWithADoubleAndUnit> fSiteRadiusCmd;
+    std::unique_ptr<G4UIcmdWithABool> fKillOutsideCellCmd;
 };
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
