@@ -28,8 +28,9 @@
 ///
 /// 支持两种源类型(/source/type)：
 ///   - proton : 原质子枪(基线对比)，位置/方向由成员决定，能量由 /gun/energy 给
-///   - ac225  : Ac-225 α 源，从细胞膜面均匀随机点各向同性发射一个 α，
-///              能量按 Ac-225 衰变链抽样(一个 α = 一个事件，契合 MK 单事件定义)
+///   - ac225  : Ac-225 α 源，从指定区室(/source/compartment)均匀随机点各向同性
+///              发射一个 α，能量按 Ac-225 衰变链抽样(一个 α = 一个事件，契合 MK 单事件定义)
+///   区室: Nucleus(核内) | Cytoplasm(质内) | Membrane(膜面,默认) | Extracellular(胞外)
 
 #include "PrimaryGeneratorAction.hh"
 
@@ -73,13 +74,9 @@ PrimaryGeneratorAction::~PrimaryGeneratorAction() = default;
 void PrimaryGeneratorAction::GeneratePrimaries(G4Event* anEvent)
 {
   if (fSourceType == "ac225") {
-    // ----- Ac-225 α 源：膜面随机点 + 各向同性 + 抽样能量 -----
-    const auto* det = static_cast<const DetectorConstruction*>(
-      G4RunManager::GetRunManager()->GetUserDetectorConstruction());
-    G4double Rcell = det ? det->GetCellRadius() : 10. * um;
-
+    // ----- Ac-225 α 源：区室抽样位置 + 各向同性 + 抽样能量 -----
     G4double ekin = SampleAc225AlphaEnergy();
-    G4ThreeVector pos = SampleMembranePosition(Rcell);
+    G4ThreeVector pos = SampleSourcePosition();
     G4ThreeVector dir = SampleIsotropicDirection();
 
     fParticleGun->SetParticleDefinition(fAlpha);
@@ -87,10 +84,12 @@ void PrimaryGeneratorAction::GeneratePrimaries(G4Event* anEvent)
     fParticleGun->SetParticlePosition(pos);
     fParticleGun->SetParticleMomentumDirection(dir);
 
-    // 任务2.1 诊断：打印前若干事件的抽样参数(验证各向同性+能量)
+    // 诊断：打印前若干事件的抽样参数(验证区室位置 + 各向同性 + 能量)
     if (anEvent->GetEventID() < 10) {
       G4cout << "[Ac225] event " << anEvent->GetEventID()
+             << "  comp=" << fCompartment
              << "  Ekin=" << ekin / MeV << " MeV"
+             << "  |pos|=" << pos.mag() / um << " um"
              << "  pos(um)=" << pos / um
              << "  dir=" << dir << G4endl;
     }
@@ -145,14 +144,65 @@ G4ThreeVector PrimaryGeneratorAction::SampleIsotropicDirection() const
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
 
 G4ThreeVector
-PrimaryGeneratorAction::SampleMembranePosition(G4double r) const
+PrimaryGeneratorAction::SampleSourcePosition() const
 {
-  // 细胞膜面(半径 r 的球面)上均匀随机点
-  G4double cosTheta = 2. * G4UniformRand() - 1.;
-  G4double sinTheta = std::sqrt((1. - cosTheta) * (1. + cosTheta));
-  G4double phi = CLHEP::twopi * G4UniformRand();
-  return G4ThreeVector(r * sinTheta * std::cos(phi),
-                       r * sinTheta * std::sin(phi), r * cosTheta);
+  // 按 fCompartment 在对应区室内均匀抽样源点位置
+  const auto* det = static_cast<const DetectorConstruction*>(
+    G4RunManager::GetRunManager()->GetUserDetectorConstruction());
+  G4double Rn = det ? det->GetNucleusRadius() : 8. * um;
+  G4double Rc = det ? det->GetCellRadius() : 10. * um;
+  G4double Rworld = Rc + (det ? det->GetMaxRange() : 49. * um);
+
+  if (fCompartment == "Nucleus")       return SampleInSphere(Rn);
+  if (fCompartment == "Cytoplasm")     return SampleInShell(Rn, Rc);
+  if (fCompartment == "Extracellular") return SampleInBoxMinusSphere(Rc, Rworld);
+  // 默认 / Membrane：细胞膜面
+  return SampleOnSphere(Rc);
+}
+
+//....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
+
+G4ThreeVector PrimaryGeneratorAction::SampleInSphere(G4double R) const
+{
+  // 球内均匀：r ~ R * u^(1/3)，方向各向同性
+  G4double r = R * std::pow(G4UniformRand(), 1. / 3.);
+  return r * SampleIsotropicDirection();
+}
+
+//....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
+
+G4ThreeVector
+PrimaryGeneratorAction::SampleInShell(G4double Rin, G4double Rout) const
+{
+  // 球壳 [Rin,Rout] 内均匀：r^3 在 [Rin^3, Rout^3] 均匀
+  G4double rin3 = Rin * Rin * Rin;
+  G4double rout3 = Rout * Rout * Rout;
+  G4double r = std::pow(rin3 + G4UniformRand() * (rout3 - rin3), 1. / 3.);
+  return r * SampleIsotropicDirection();
+}
+
+//....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
+
+G4ThreeVector PrimaryGeneratorAction::SampleOnSphere(G4double R) const
+{
+  // 球面均匀 = R * 各向同性单位方向
+  return R * SampleIsotropicDirection();
+}
+
+//....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
+
+G4ThreeVector
+PrimaryGeneratorAction::SampleInBoxMinusSphere(G4double Rc, G4double wh) const
+{
+  // 半边长 wh 的盒内、排除半径 Rc 的球(胞外区)：拒绝采样
+  for (G4int i = 0; i < 1000; ++i) {
+    G4double x = (2. * G4UniformRand() - 1.) * wh;
+    G4double y = (2. * G4UniformRand() - 1.) * wh;
+    G4double z = (2. * G4UniformRand() - 1.) * wh;
+    G4ThreeVector p(x, y, z);
+    if (p.mag() > Rc) return p;
+  }
+  return G4ThreeVector(wh, 0., 0.);  // fallback(几乎不会到达)
 }
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......

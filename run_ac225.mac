@@ -44,8 +44,9 @@
 #################################################
 ### /source/type 命令由 PrimaryGeneratorMessenger 注册，
 ### 该 messenger 随 PrimaryGeneratorAction 在 initialize 时构造。
-### 膜面均匀随机点 + 各向同性 + Ac-225 α 能量抽样(一个α一个事件)
+### 区室: Nucleus(核内) | Cytoplasm(质内) | Membrane(膜面) | Extracellular(胞外)
 /source/type ac225
+/source/compartment Membrane
 
 #######################
 ### PRODUCTION CUTS ###

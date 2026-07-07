@@ -57,11 +57,19 @@ PrimaryGeneratorMessenger::PrimaryGeneratorMessenger(
 
   fSourceTypeCmd = std::make_unique<G4UIcmdWithAString>("/source/type", this);
   fSourceTypeCmd->SetGuidance(
-    "Source type: proton (baseline) | ac225 (Ac-225 alpha from cell membrane)");
+    "Source type: proton (baseline) | ac225 (Ac-225 alpha, compartment set by /source/compartment)");
   fSourceTypeCmd->SetParameterName("type", false);
   fSourceTypeCmd->SetCandidates("proton ac225");
   fSourceTypeCmd->SetDefaultValue("ac225");
   fSourceTypeCmd->AvailableForStates(G4State_PreInit, G4State_Idle);
+
+  fCompartmentCmd = std::make_unique<G4UIcmdWithAString>("/source/compartment", this);
+  fCompartmentCmd->SetGuidance(
+    "Source compartment (ac225): Nucleus | Cytoplasm | Membrane | Extracellular");
+  fCompartmentCmd->SetParameterName("comp", false);
+  fCompartmentCmd->SetCandidates("Nucleus Cytoplasm Membrane Extracellular");
+  fCompartmentCmd->SetDefaultValue("Membrane");
+  fCompartmentCmd->AvailableForStates(G4State_PreInit, G4State_Idle);
 }
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
@@ -78,6 +86,9 @@ void PrimaryGeneratorMessenger::SetNewValue(G4UIcommand* command,
   }
   if (command == fSourceTypeCmd.get()) {
     fPrimaryAction->SetSourceType(newValue);
+  }
+  if (command == fCompartmentCmd.get()) {
+    fPrimaryAction->SetCompartment(newValue);
   }
 }
 

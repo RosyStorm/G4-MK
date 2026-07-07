@@ -56,12 +56,18 @@ class PrimaryGeneratorAction : public G4VUserPrimaryGeneratorAction
     void SetPositionZ(G4double z) { fZ0 = z; }
     void SetSourceType(const G4String& t) { fSourceType = t; }
     G4String GetSourceType() const { return fSourceType; }
+    void SetCompartment(const G4String& c) { fCompartment = c; }
+    G4String GetCompartment() const { return fCompartment; }
 
   private:
     // Ac-225 α 源辅助方法
     G4double SampleAc225AlphaEnergy() const;            // 抽样 Ac-225 衰变链 α 动能
     G4ThreeVector SampleIsotropicDirection() const;     // 各向同性单位方向
-    G4ThreeVector SampleMembranePosition(G4double r) const;  // 细胞膜面均匀随机点
+    G4ThreeVector SampleSourcePosition() const;         // 按 fCompartment 抽样源点位置
+    G4ThreeVector SampleInSphere(G4double R) const;                  // 球内均匀
+    G4ThreeVector SampleInShell(G4double Rin, G4double Rout) const;  // 球壳内均匀
+    G4ThreeVector SampleOnSphere(G4double R) const;                  // 球面均匀
+    G4ThreeVector SampleInBoxMinusSphere(G4double Rc, G4double wh) const; // 盒内排除球(胞外)
 
     std::unique_ptr<G4ParticleGun> fParticleGun;
     std::unique_ptr<PrimaryGeneratorMessenger> fGunMessenger;
@@ -70,6 +76,7 @@ class PrimaryGeneratorAction : public G4VUserPrimaryGeneratorAction
     G4ParticleDefinition* fParticle = nullptr;   // 质子(基线对比用)
     G4ParticleDefinition* fAlpha = nullptr;      // α 粒子
     G4String fSourceType = "ac225";              // proton | ac225
+    G4String fCompartment = "Membrane";          // Nucleus | Cytoplasm | Membrane | Extracellular
     G4double fX0 = 0.;
     G4double fY0 = 0.;
     G4double fZ0 = -10.2 * um;

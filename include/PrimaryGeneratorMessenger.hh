@@ -58,6 +58,7 @@ class PrimaryGeneratorMessenger : public G4UImessenger
     std::unique_ptr<G4UIdirectory> fSourceDir;
     std::unique_ptr<G4UIcmdWithADoubleAndUnit> fZ0Cmd;
     std::unique_ptr<G4UIcmdWithAString> fSourceTypeCmd;
+    std::unique_ptr<G4UIcmdWithAString> fCompartmentCmd;
 };
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
