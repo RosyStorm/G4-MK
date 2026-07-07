@@ -166,6 +166,15 @@ RunAction::RunAction()
   analysisManager->CreateH1(
     "alphaRange", "Primary alpha CSDA range [um] (task 3.1)",
     240, 0., 120.);
+
+  // 任务4.1：核单事件比能 z_n 谱(与 z_d 同对数分箱)，→ z̄_{n,F}, z̄_{n,D} 喂 SMK 式(24)
+  analysisManager->CreateH1(
+    "fzn", "Single-event nucleus specific energy z_n [Gy] (log binning)",
+    vecBinsLog10E);
+  analysisManager->CreateH1(
+    "znfzn", "Dose-weighted z_n [Gy] (log binning)", vecBinsLog10E);
+  analysisManager->CreateH1(
+    "z2nfzn", "Squared-weighted z_n [Gy] (log binning)", vecBinsLog10E);
 }
 
 
@@ -269,6 +278,25 @@ void RunAction::EndOfRunAction(const G4Run* /*aRun*/)
            << analysisManager->GetH1(8)->mean() << " Gy"
            << " (rms = " << analysisManager->GetH1(8)->rms() << " Gy)"
            << G4endl;
+
+    // 任务4.1：核级 z_n (→ z̄_{n,D} 喂 SMK)
+    G4int idZnF = analysisManager->GetH1Id("fzn");
+    G4int idZnD = analysisManager->GetH1Id("znfzn");
+    if (idZnF >= 0 && analysisManager->GetH1(idZnF) && idZnD >= 0
+        && analysisManager->GetH1(idZnD)) {
+      G4cout << G4endl
+             << "  Single-event NUCLEUS specific energy (z_n, task 4.1):\n"
+             << "  ---------------------------------------------------"
+             << G4endl << G4endl;
+      G4cout << "    Frequency-mean: z_{n,F} = "
+             << analysisManager->GetH1(idZnF)->mean() << " Gy "
+             << " (rms = " << analysisManager->GetH1(idZnF)->rms() << " Gy)"
+             << G4endl;
+      G4cout << "    Dose-mean:      z_{n,D} = "
+             << analysisManager->GetH1(idZnD)->mean() << " Gy "
+             << " (rms = " << analysisManager->GetH1(idZnD)->rms() << " Gy)"
+             << G4endl;
+    }
 
     G4cout << G4endl
            << "  Number of hits per event:\n"

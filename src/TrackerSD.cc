@@ -127,6 +127,9 @@ void TrackerSD::EndOfEvent(G4HCofThisEvent*)
            << " hits in the tracker." << G4endl;
   }
 
+  // 本事件无核内沉积(如膜/胞外源 α 未命中核)：单事件谱 f_{n,1} 不含 miss 事件，直接返回
+  if (nofHits == 0) return;
+
   // Get the DetectorConstruction instance
   const DetectorConstruction* detConstruction =
     static_cast<const DetectorConstruction*>(
@@ -161,7 +164,8 @@ void TrackerSD::EndOfEvent(G4HCofThisEvent*)
   G4int nHsel = 0;  // number of hits in the selection region
   G4int nHsite = 0;  // number of hits in the site
   G4int nHint = 0;  // number of hits both in site and selection region
-  G4double evtEdep = 0.;  // energy deposit in the event
+  G4double evtEdep = 0.;  // 域内能量沉积(单事件)
+  G4double nucleusEdep = 0.;  // 核内总能量沉积(单事件, 任务4.1 用于 z_n)
 
   if (nofHits > 0) {
     const G4int maxTries = 1000;
@@ -214,6 +218,9 @@ void TrackerSD::EndOfEvent(G4HCofThisEvent*)
     auto hit2 = (*fHitsCollection)[jj];
     G4ThreeVector hit2Position = hit2->GetPosition();
 
+    // 核总能量累加(所有 hit 均在核内, SD 在核上)
+    nucleusEdep += hit2->GetEdep();
+
     // 判定该 hit 是否落在细胞核内
     G4bool inNucleus = (hit2Position.mag() < nucleusRadius);
 
@@ -233,6 +240,21 @@ void TrackerSD::EndOfEvent(G4HCofThisEvent*)
 
   // Access the analysis manager
   auto analysisManager = G4AnalysisManager::Instance();
+
+  // ===== 核级比能 z_n (任务4.1)：核内总沉积 / 核质量，无加权(核是整个位点) =====
+  G4double massNucleus =
+    (4. / 3.) * CLHEP::pi * nucleusRadius * nucleusRadius * nucleusRadius
+    * DetDensity;
+  G4double z_n = nucleusEdep / massNucleus;
+  if (nucleusEdep > 0.) {
+    G4double zn = z_n / gray;
+    G4int idF = analysisManager->GetH1Id("fzn");
+    G4int idZF = analysisManager->GetH1Id("znfzn");
+    G4int idZ2F = analysisManager->GetH1Id("z2nfzn");
+    if (idF >= 0) analysisManager->FillH1(idF, zn, 1.);            // → z̄_{n,F}
+    if (idZF >= 0) analysisManager->FillH1(idZF, zn, zn);          // → z̄_{n,D}
+    if (idZ2F >= 0) analysisManager->FillH1(idZ2F, zn, zn * zn);   // 高阶矩
+  }
 
   // Calculate lineal energy
   G4double y = (evtEdep) / ((4. / 3.) * site_radius);  // in keV/um
