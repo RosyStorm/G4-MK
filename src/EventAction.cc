@@ -41,6 +41,7 @@ void EventAction::BeginOfEventAction(const G4Event* /*anEvent*/)
   fHaveVertex = false;
   fPrimaryVertex = G4ThreeVector();
   fTotalEdep = 0.;  // 任务6.2: 每事件重置全局能量沉积
+  fNucleusEdepBoundary = 0.;  // P0 修复 #1: 边界步核内 edep 累加器重置
 }
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......

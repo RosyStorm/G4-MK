@@ -61,11 +61,19 @@ class EventAction : public G4UserEventAction
     void AddEdep(G4double e) { fTotalEdep += e; }
     G4double GetTotalEdep() const { return fTotalEdep; }
 
+    // P0 修复 #1: 出射边界步核内 edep 补加(SteppingAction 在 pre 在核内 post 在核外时调用)
+    //   TrackerSD 默认按 volume 过滤, 跨边界出射 step 的 edep 归到 post volume(核外),
+    //   SD 不收到 hit, 故 TrackerSD::EndOfEvent 中的 hit-sum nucleusEdep 会漏掉这部分.
+    //   这里补加, 然后在 EndOfEvent 中把 hit-sum + boundary 求和得完整核内沉积.
+    void AddNucleusEdepBoundary(G4double e) { fNucleusEdepBoundary += e; }
+    G4double GetNucleusEdepBoundary() const { return fNucleusEdepBoundary; }
+
   private:
     G4ThreeVector fPrimaryVertex{};
     G4double fMaxRange = 0.;
     G4bool fHaveVertex = false;
     G4double fTotalEdep = 0.;  // 全局能量沉积(任务6.2 能量平衡)
+    G4double fNucleusEdepBoundary = 0.;  // 边界步核内 edep 补加(P0 修复 #1)
 };
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......

@@ -136,7 +136,9 @@ void analyze_dsmk(const char* fname = "microtrack.root",
   double sZs=0,sZs2=0,sZw=0; // Σw zs, Σw zs², Σw
   for(int b=1;b<=fd1->GetNbinsX();b++){ double zv=fd1->GetBinCenter(b),c=fd1->GetBinContent(b);
     if(c<=0)continue; double zs=z0*(1-exp(-(zv/z0)*(zv/z0))); sZs+=c*zs; sZs2+=c*zs*zs; sZw+=c; }
-  double zsD = (sZs>0)? sZs2/sZs : 0;  // z̄*_{d,D} (Inaniwa 无sqrt, 式12)
+  // P0 修复 #5: Inaniwa 式 (12) 分母应为 z̄_{d,F} (=zdF), 不是 z̄*_{d,F} (=sZs).
+  // 原 sZs2/sZs = ∫(z*)²f / ∫z*f 是 z* 的自身剂量均; 正确公式 ∫(z*)²f / z̄_{d,F} 见 PDF 式(12).
+  double zsD = (zdF > 0) ? sZs2 / zdF : 0;  // z̄*_{d,D} (Inaniwa 式12)
   double aS=alpha0+beta0*zsD, bS=beta0*zsD/zdD, aM=alpha0+beta0*zsD, bM=beta0;
   TGraph *gMSMK=new TGraph(); gMSMK->SetName("S_mSMK");
   TGraph *gMK  =new TGraph(); gMK->SetName("S_MK");

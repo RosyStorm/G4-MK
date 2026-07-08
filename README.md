@@ -211,7 +211,7 @@ Inaniwa2018：α0=0.174, β0=0.0568, r_d=0.28, R_n=8.1, z0=66。
 
 | 校验 | 结果 |
 |---|---|
-| 能量守恒（kill OFF） | `<edep_total>/<alphaE>` = **1.000** ✓ |
+| 能量守恒（**killOutsideCell=false, killAtNucleus=false**，即完全输运） | `<edep_total>/<alphaE>` = **1.000** ✓（生产配置 kill=ON 时，<edep_total>/<alphaE><1，因出核 α 被 kill 未沉积剩余能量） |
 | S(N←N) Ac-225（r_n=6.2µm） | **0.21 Gy/dec**（自洽；MIRDcell 精确对标需软件） |
 | 卷积正确性 | 复合 Poisson 矩关系全部吻合 ✓ |
 | 每-Gy 存活（HSG, DSMK） | D@S=0.1 ≈ 1.0 Gy；RBE₁₀ ≈ 5（α 文献 3–5） |

@@ -182,8 +182,12 @@ void TrackerSD::EndOfEvent(G4HCofThisEvent*)
       auto hit = (*fHitsCollection)[randHit];
       G4ThreeVector hitPosition = hit->GetPosition();
 
-      // 判定该 hit 是否落在细胞核内（核球为 hit 选择区）
-      if (hitPosition.mag() < nucleusRadius)
+      // 判定该 hit 是否落在细胞核内(核球为 hit 选择区)
+      //   且要求 site 球能完全置于核内: 即此 hit 周围 r_d 球内的 site 中心
+      //   满足 |randCenterPos| + r_d ≤ R_n. 由于 randCenterPos = hitPos + 偏移(|偏移|≤r_d),
+      //   充要条件是 |hitPos| ≤ R_n - r_d. 这样保证 site 完全在核内,
+      //   避免 site 部分超出核导致 nHint 偏小、nHsel/nHint 加权比偏高.
+      if (hitPosition.mag() <= nucleusRadius - site_radius)
       {
         hitPos = hitPosition;  // store valid hit position
 
@@ -214,7 +218,8 @@ void TrackerSD::EndOfEvent(G4HCofThisEvent*)
         << "after trying " << tries << " times." << G4endl
         << "Please consider checking the source position / nucleus radius."
         << G4endl;
-      return;  // Skip analysis if no valid hit was found
+      // 不再 return: miss 事件仍需填 ntuple(hitFlag=0), 保持任务 4.2 hit/miss 都记录的设计
+      // 此时 nHsel=nHsite=nHint=0, evtEdep=0; z_n/z_d 直方图被 if(nucleusEdep>0)/if(nHint>0) 自然过滤
     }
   }
 
@@ -245,6 +250,17 @@ void TrackerSD::EndOfEvent(G4HCofThisEvent*)
 
   // Access the analysis manager
   auto analysisManager = G4AnalysisManager::Instance();
+
+  // ===== P0 修复 #1: 补加出射边界步核内 edep =====
+  //   SD hit-sum 已包含 pre/post 均在核内的 step + 入射 step (pre 在核外 post 在核内,
+  //   edep 归到 post → SD 收到). 但出射 step (pre 在核内 post 在核外) 的 edep 归到
+  //   post volume (核外), SD 不收到. SteppingAction 已通过 EventAction 累加了
+  //   fNucleusEdepBoundary, 这里加到 nucleusEdep 得到完整核内沉积.
+  {
+    const auto* evtAct = dynamic_cast<const EventAction*>(
+      G4RunManager::GetRunManager()->GetUserEventAction());
+    if (evtAct) nucleusEdep += evtAct->GetNucleusEdepBoundary();
+  }
 
   // ===== 核级比能 z_n (任务4.1)：核内总沉积 / 核质量，无加权(核是整个位点) =====
   G4double massNucleus =

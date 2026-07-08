@@ -60,9 +60,12 @@ void analyze_mk(const char* fname = "microtrack.root",
 
   // ---------- 3. 微剂量学量 ----------
   double zF  = Swz / Sw;          // z̄_{d,F}  频率均
-  double zD  = Swzz / Swz;        // z̄_{d,D}  剂量均
-  double zsF = Swzs / Sw;         // z̄*_{d,F}
-  double zsD = Swzszs / Swzs;     // z̄*_{d,D}
+  double zD  = Swzz / Swz;        // z̄_{d,D}  剂量均 (式11: ∫z²f / ∫zf)
+  double zsF = Swzs / Sw;         // z̄*_{d,F} (式10)
+  // P0 修复 #5: Inaniwa 式 (12) 分母应为 z̄_{d,F} (z_d 的频率均), 不是 z̄*_{d,F} (z*_d 的频率均)
+  // 原代码 Swzszs/Swzs = ∫(z*)²f / ∫z*f 是 z* 的"自身剂量均", 与 Inaniwa 公式不符.
+  // 正确公式: z̄*_{d,D} = ∫(z*)²f / z̄_{d,F}, 见 Inaniwa 2018 式(12) 与 Sato 2012 式(13).
+  double zsD = (Swz > 0) ? Swzszs / Swz : 0;  // z̄*_{d,D} (Inaniwa 式12)
   double znF = Szn / nh;          // z̄_{n,F}
   double znD = Sznzn / Szn;       // z̄_{n,D}
 

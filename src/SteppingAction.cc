@@ -34,13 +34,25 @@
 
 #include "DetectorConstruction.hh"
 #include "EventAction.hh"
-#include "G4Alpha.hh"
+#include "G4ParticleDefinition.hh"
 #include "G4RunManager.hh"
 #include "G4Step.hh"
 #include "G4StepPoint.hh"
 #include "G4Track.hh"
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
+
+// 判断粒子是否在 α 链(He2+/He+/He0). Geant4-DNA 中 α 通过 G4DNAChargeDecrease 改
+// 变电荷态时**会创建新粒子定义**(alpha→alpha+→alpha++→helium), 用 G4Alpha::Definition()
+// 只匹配第一级, 漏掉后续链上粒子. 这里用粒子名判定覆盖完整 α 链.
+namespace {
+bool IsAlphaChain(const G4ParticleDefinition* pd) {
+  if (!pd) return false;
+  const G4String& name = pd->GetParticleName();
+  // 覆盖 G4DNAChargeDecrease/Increase 链: alpha, alpha+, alpha++, helium
+  return name == "alpha" || name == "alpha+" || name == "alpha++" || name == "helium";
+}
+}  // namespace
 
 void SteppingAction::UserSteppingAction(const G4Step* step)
 {
@@ -70,13 +82,28 @@ void SteppingAction::UserSteppingAction(const G4Step* step)
     }
   }
 
+  // ===== P0 修复 #1: 出射边界步核内 edep 补加 =====
+  // TrackerSD 默认按 volume 过滤: pre 在核内、post 在核外的 step, edep 归到 post (核外),
+  // SD 不收到 hit, 导致 nucleusEdep (hit-sum) 漏掉这部分. 这里补加(保守按整 step 在核内).
+  // 入射步 (pre 在核外 post 在核内) 由 SD 的 hit-sum 自然覆盖; 核内 step 同理.
+  {
+    const G4StepPoint* pre  = step->GetPreStepPoint();
+    const G4StepPoint* post = step->GetPostStepPoint();
+    const auto* preVol  = pre->GetTouchableHandle()->GetVolume();
+    const auto* postVol = post->GetTouchableHandle()->GetVolume();
+    if (preVol && postVol &&
+        preVol->GetName() == "Nucleus" && postVol->GetName() != "Nucleus") {
+      if (fEventAction)
+        fEventAction->AddNucleusEdepBoundary(step->GetTotalEnergyDeposit());
+    }
+  }
+
   // ===== 任务3.1: α 链投影射程累计(射程验证时 kill 开关须关) =====
   if (!fEventAction) return;
 
   // 仅对 α 初级源记录射程：在事件首个初级粒子(应为 α)的第一步登记发射点
   if (!fEventAction->HaveVertex()) {
-    if (track->GetParentID() == 0 &&
-        track->GetParticleDefinition() == G4Alpha::Definition()) {
+    if (track->GetParentID() == 0 && IsAlphaChain(track->GetParticleDefinition())) {
       fEventAction->SetPrimaryVertex(track->GetVertexPosition());
     }
     else {
@@ -85,6 +112,10 @@ void SteppingAction::UserSteppingAction(const G4Step* step)
   }
 
   // 累计本事件 α 链相对发射点的最大位移 = 投影射程(直进，≈ CSDA 射程)
+  // 注意: 只对 α 链上粒子(alpha/alpha+/alpha++/helium)计入. Geant4-DNA 中电荷交换
+  //       会创建新粒子定义, 必须用粒子名判定覆盖全链, 否则漏掉 alpha+ 等后续粒子.
+  //       δ 电子(G4Electron)的远端位置不被计入, 否则被电子拉宽射程直方图.
+  if (!IsAlphaChain(track->GetParticleDefinition())) return;
   fEventAction->UpdateMaxRange(step->GetPostStepPoint()->GetPosition());
 }
 
