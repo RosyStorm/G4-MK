@@ -212,11 +212,12 @@ void RunAction::BeginOfRunAction(const G4Run* /*aRun*/)
 
   // Open an output file
   // The file extension will set the choice of the output format
-  G4String fileName = "microtrack.root";
+  // 注: 输出统一放到 data/ 子目录(相对当前工作目录), 便于和源码/macro/analysis 分离
+  G4String fileName = "data/microtrack.root";
   // Other formats supported: .csv, .hdf5, .xml
-  // G4String fileName = "microtrack.csv";
-  // G4String fileName = "microtrack.hdf5";
-  // G4String fileName = "microtrack.xml";
+  // G4String fileName = "data/microtrack.csv";
+  // G4String fileName = "data/microtrack.hdf5";
+  // G4String fileName = "data/microtrack.xml";
   analysisManager->OpenFile(fileName);
   G4cout << "Using " << analysisManager->GetType() << G4endl;
 }

@@ -6,8 +6,8 @@
 #include <cstdio>
 void task6_summary(){
   // z̄_{n,D} 与命中率 + edep_n/hit 已由 task6_compartments.C 给出; 这里补 S(N←source)
-  const char* files[]={"microtrack_Nuc.root","microtrack_Cyt.root",
-                       "microtrack_membrane.root","microtrack_Ext.root"};
+  const char* files[]={"data/microtrack_Nuc.root","data/microtrack_Cyt.root",
+                       "data/microtrack_membrane.root","data/microtrack_Ext.root"};
   const char* labels[]={"Nucleus","Cytoplasm","Membrane","Extracell"};
   double Rn=6.2e-6, m_n=(4./3.)*TMath::Pi()*Rn*Rn*Rn*1000.;
   printf("\n===== 6.3 每衰变核剂量 S(N<-source) [= 4×命中率×<edep_n>/m_n] =====\n");

@@ -2,12 +2,12 @@
 // 读 events ntuple → 算微剂量学量 → MK / 修正 SMK 存活曲线 S(D)
 // 参考: Inaniwa & Kanematsu, Phys. Med. Biol. 63 (2018) 095011
 //
-// 用法:
-//   conda run -n microtrack root -b -q analyze_mk.C
-//   conda run -n microtrack root -b -q 'analyze_mk.C("microtrack.root",0.174,0.0568,66.0,15)'
+// 用法(从 microtrack/ 根目录运行):
+//   conda run -n microtrack root -b -q analysis/analyze_mk.C
+//   conda run -n microtrack root -b -q 'analysis/analyze_mk.C("data/microtrack.root",0.174,0.0568,66.0,15)'
 //
 // 输入列(任务4.2 ntuple): z_d_Gy, z_n_Gy, weight, hitFlag, alphaE_MeV, ...
-// 输出: 终端打印各量 + S(D) 表 + survival.png + survival.root(图与结果)
+// 输出: 终端打印各量 + S(D) 表 + result/mod-SMK/survival.*(图与结果)
 
 #include <TFile.h>
 #include <TTree.h>
@@ -21,7 +21,7 @@
 #include <cstdio>
 #include <TSystem.h>
 
-void analyze_mk(const char* fname = "microtrack.root",
+void analyze_mk(const char* fname = "data/microtrack.root",
                 double alpha0 = 0.174,   // 细胞系 α0 (HSG), Gy^-1  —— Inaniwa2018 Table1
                 double beta0  = 0.0568,  // 细胞系 β0 (HSG), Gy^-2
                 double z0     = 66.0,    // 饱和参数 z0 (HSG), Gy

@@ -55,8 +55,8 @@ TGraph* dsmkSD(TTree* t,double a0,double b0,double z0,double Dmax,
 }
 
 void task6_compartments(){
-  const char* files[]={"microtrack_Nuc.root","microtrack_Cyt.root",
-                       "microtrack_membrane.root","microtrack_Ext.root"};
+  const char* files[]={"data/microtrack_Nuc.root","data/microtrack_Cyt.root",
+                       "data/microtrack_membrane.root","data/microtrack_Ext.root"};
   const char* labels[]={"Nucleus","Cytoplasm","Membrane","Extracellular"};
   int cols[]={kBlack,kBlue,kRed,kGreen+2};
   double a0=0.156,b0=0.0607,z0=89,Dmax=12;

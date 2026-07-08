@@ -36,7 +36,7 @@ double interp(const vector<double>& xv, const vector<double>& yv, double x){
   return yv[i]+(yv[i+1]-yv[i])/(xv[i+1]-xv[i])*(x-xv[i]);
 }
 
-void analyze_dsmk(const char* fname = "microtrack.root",
+void analyze_dsmk(const char* fname = "data/microtrack.root",
                   double alpha0 = 0.156, double beta0 = 0.0607, double z0 = 89.0,
                   double Dmax = 15.0)
 {

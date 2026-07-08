@@ -39,11 +39,20 @@ target_link_libraries(microtrack ${Geant4_LIBRARIES} ${ROOT_LIBRARIES})
 # microtrack. This is so that we can run the executable directly because it
 # relies on these scripts being in the current working directory.
 #
-set(microtrack_SCRIPTS run.mac init_vis.mac vis.mac processMicrotrack.C)
+# 注: .mac 在 macro/, ROOT 脚本在 analysis/, 目标位置保持 build/ 同名(便于旧调用习惯)
+set(macro_SCRIPTS macro/run.mac macro/init_vis.mac macro/vis.mac)
+set(analysis_SCRIPTS analysis/processMicrotrack.C)
 
-foreach(_script ${microtrack_SCRIPTS})
+foreach(_script ${macro_SCRIPTS})
+  get_filename_component(_name "${_script}" NAME)
   configure_file(${PROJECT_SOURCE_DIR}/${_script}
-                 ${PROJECT_BINARY_DIR}/${_script} COPYONLY)
+                 ${PROJECT_BINARY_DIR}/${_name} COPYONLY)
+endforeach()
+
+foreach(_script ${analysis_SCRIPTS})
+  get_filename_component(_name "${_script}" NAME)
+  configure_file(${PROJECT_SOURCE_DIR}/${_script}
+                 ${PROJECT_BINARY_DIR}/${_name} COPYONLY)
 endforeach()
 
 # ----------------------------------------------------------------------------

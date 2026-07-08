@@ -44,25 +44,39 @@ microtrack/
 │   ├── RunAction              ★    直方图 + events ntuple 定义 + 统计打印
 │   ├── TrackerSD              ★    核内打分：域 z_d + 核 z_n + 全局 edep；EndOfEvent 填 ntuple
 │   ├── TrackerHit                  hit（位置+edep）
-│   ├── SteppingAction        ★(新) 出核/出细胞即杀（加速）+ 全局 edep 累加 + α 射程跟踪
-│   └── EventAction           ★(新) 逐事件：α 射程 + 全局 edep 累加器
+│   ├── SteppingAction        ★(新) 出核/出细胞即杀（加速）+ 全局 edep 累加 + α 链全链跟踪
+│   └── EventAction           ★(新) 逐事件：α 射程 + 全局 edep + 边界步核内 edep 累加器
 │
-├── run_validation.mac         质子基线（同心球，/source/type proton）
-├── run_ac225.mac              Ac-225 膜面源（默认几何，加速全开）
-├── run_hsg.mac          ★     HSG 一致几何（r_d=0.274, r_n=6.2 µm，Sato Table1）+ Ac-225
-├── run_alpha_range.mac        α 射程验证（单能，kill 关）
-├── run.mac                    原始示例宏（旧盒形，过时）
-├── init_vis.mac / vis.mac     可视化
+├── macro/                     G4 模拟输入（.mac 宏，按用途分类）
+│   ├── run_validation.mac         质子基线（同心球，/source/type proton）
+│   ├── run_ac225.mac              Ac-225 膜面源（默认几何，加速全开）
+│   ├── run_hsg.mac          ★     HSG 一致几何（r_d=0.274, r_n=6.2 µm，Sato Table1）+ Ac-225
+│   ├── run_alpha_range.mac        α 射程验证（单能，kill 关）
+│   ├── run.mac                    原始示例宏（旧盒形，过时）
+│   └── init_vis.mac / vis.mac     可视化
 │
-├── analyze_dsmk.C       ★(主) DSMK 模型：显式卷积(Sato 式20-28) + 矩验证 + S(D) + 对比 mod-SMK/MK
-├── analyze_mk.C               mod-SMK 闭式(Inaniwa 式24) + 经典 MK
-├── task6_svalue_balance.C     6.1 S(N←N) + 6.2 能量平衡
-├── task6_compartments.C       6.3 四区室 z̄_{n,D} + DSMK S(D) 对比
-├── task6_summary.C            6.3 四区室每衰变核剂量 S(N←source)
-└── processMicrotrack.C        直方图轴标题（旧）
+├── analysis/                  ROOT 后处理脚本（按模型/任务分类）
+│   ├── analyze_dsmk.C       ★(主) DSMK 模型：显式卷积(Sato 式20-28) + 矩验证 + S(D) + 对比 mod-SMK/MK
+│   ├── analyze_mk.C               mod-SMK 闭式(Inaniwa 式24) + 经典 MK
+│   ├── task6_svalue_balance.C     6.1 S(N←N) + 6.2 能量平衡
+│   ├── task6_compartments.C       6.3 四区室 z̄_{n,D} + DSMK S(D) 对比
+│   ├── task6_summary.C            6.3 四区室每衰变核剂量 S(N←source)
+│   └── processMicrotrack.C        直方图轴标题（旧）
+│
+├── data/                      G4 模拟输出（.root 文件，运行时生成）
+│   └── microtrack*.root          microtrack.root (默认) + 四区室 (Nuc/Cyt/Mem/Ext)
+│
+├── result/                    ROOT 后处理输出（图片 + root）
+│   ├── DSMK/                     analyze_dsmk.C 输出
+│   ├── mod-SMK/                  analyze_mk.C 输出
+│   └── compartment/              task6_compartments.C 输出
+│
+├── build/                     编译产物（cmake .. && make）
+├── ref/                       PDF 文献（Sato 2012, Inaniwa 2018 等，不入库）
+└── History                    项目历史
 ```
 
-**核心打分链**：`PrimaryGeneratorAction`(源) → `TrackerSD`(核内 edep→z_d/z_n) → `SteppingAction`(kill加速+全局edep) → `RunAction`(ntuple/直方图) → `analyze_dsmk.C`(后处理)。
+**核心打分链**：`PrimaryGeneratorAction`(源) → `TrackerSD`(核内 edep→z_d/z_n) → `SteppingAction`(kill加速+全局edep+边界补加) → `RunAction`(ntuple/直方图 → `data/microtrack.root`) → `analysis/analyze_dsmk.C`(后处理)。
 
 ---
 
@@ -99,41 +113,41 @@ mkdir -p build && cd build && cmake .. && make -j4
 ```
 > ⚠ 本机 ~8 GB 内存、无 swap，`make` 与多线程不要开太高，避免 OOM。
 
-### 运行（批处理）
+### 运行（批处理，从 microtrack/ 根目录）
 ```bash
 # 1) 质子基线（验证几何/打分）
-./build/microtrack run_validation.mac
+./build/microtrack macro/run_validation.mac
 
 # 2) Ac-225 膜面源（HSG 一致几何, 主配置）
-./build/microtrack run_hsg.mac
+./build/microtrack macro/run_hsg.mac
 
 # 3) 切换源区室（改宏里 /source/compartment）：
-sed 's|^/source/compartment.*|/source/compartment Nucleus|' run_hsg.mac > /tmp/run_N.mac
+sed 's|^/source/compartment.*|/source/compartment Nucleus|' macro/run_hsg.mac > /tmp/run_N.mac
 ./build/microtrack /tmp/run_N.mac    # Cytoplasm / Membrane / Extracellular 同理
 
 # 4) α 射程验证（kill 必须关, 否则射程截断）
-./build/microtrack run_alpha_range.mac
+./build/microtrack macro/run_alpha_range.mac
 ```
 交互模式（可视化）：`./build/microtrack`（加载 init_vis.mac）。
 
-输出：`microtrack.root`（直方图 + events ntuple，多线程自动合并）。
+输出：`data/microtrack.root`（直方图 + events ntuple，多线程自动合并）。
 
-### 后处理（ROOT，conda `microtrack` 环境）
+### 后处理（ROOT，conda `microtrack` 环境，从 microtrack/ 根目录）
 ```bash
 # 主分析：DSMK 存活曲线 + 微剂量学量 + 卷积矩验证（默认参数 Sato DSMK HSG）
-conda run -n microtrack root -b -q analyze_dsmk.C
+conda run -n microtrack root -b -q analysis/analyze_dsmk.C
 # 换细胞系参数:
-conda run -n microtrack root -b -q 'analyze_dsmk.C("microtrack.root",0.156,0.0607,89.0,15)'
+conda run -n microtrack root -b -q 'analysis/analyze_dsmk.C("data/microtrack.root",0.156,0.0607,89.0,15)'
 #   参数: (文件, α0[Gy⁻¹], β0[Gy⁻²], z0[Gy], Dmax[Gy])
 #   Sato DSMK HSG 默认; Inaniwa HSG: 0.174,0.0568,66.0
 
 # mod-SMK 闭式 + 经典 MK（Inaniwa 式24）
-conda run -n microtrack root -b -q analyze_mk.C
+conda run -n microtrack root -b -q analysis/analyze_mk.C
 
 # 任务6 校验:
-conda run -n microtrack root -b -q task6_summary.C          # 四区室每衰变核剂量 S(N←src)
-conda run -n microtrack root -b -q task6_svalue_balance.C   # S(N←N) + 能量平衡
-conda run -n microtrack root -b -q task6_compartments.C     # 四区室 z̄_{n,D} + S(D) 对比图
+conda run -n microtrack root -b -q analysis/task6_summary.C          # 四区室每衰变核剂量 S(N←src)
+conda run -n microtrack root -b -q analysis/task6_svalue_balance.C   # S(N←N) + 能量平衡
+conda run -n microtrack root -b -q analysis/task6_compartments.C     # 四区室 z̄_{n,D} + S(D) 对比图
 ```
 产物写 `result/DSMK/`、`result/mod-SMK/`、`result/compartment/`（图 png/pdf + root）。
 
@@ -174,7 +188,7 @@ conda run -n microtrack root -b -q task6_compartments.C     # 四区室 z̄_{n,D
 
 ## 7. 输出
 
-### microtrack.root 直方图
+### data/microtrack.root 直方图
 | | 含义 |
 |---|---|
 | H1[0-2] | 域授予能 $\varepsilon_d$（→ $\bar\varepsilon_{d,F/D}$） |
@@ -198,8 +212,8 @@ conda run -n microtrack root -b -q task6_compartments.C     # 四区室 z̄_{n,D
 
 ## 8. MK / SMK / DSMK 模型（后处理）
 
-- **DSMK**（`analyze_dsmk.C`，最严格）：Sato 式7/19，饱和 $z'_d=z_0\sqrt{1-e^{-(z_d/z_0)^2}}$（式16，有 sqrt）。多事件分布用复合 Poisson 卷积（式20-28，MC 实现），**矩验证**：$\langle z_d\rangle=z_n$、$\langle z_d^2\rangle=\bar z_{d,D}z_n+z_n^2$、$\langle z_n\rangle=D$、$\langle z_n^2\rangle=\bar z_{n,D}D+D^2$。
-- **mod-SMK**（`analyze_mk.C`，闭式）：Inaniwa 式24，饱和 $z^*=z_0(1-e^{-(z/z_0)^2})$（式1，无 sqrt），只需单事件矩。
+- **DSMK**（`analysis/analyze_dsmk.C`，最严格）：Sato 式7/19，饱和 $z'_d=z_0\sqrt{1-e^{-(z_d/z_0)^2}}$（式16，有 sqrt）。多事件分布用复合 Poisson 卷积（式20-28，MC 实现），**矩验证**：$\langle z_d\rangle=z_n$、$\langle z_d^2\rangle=\bar z_{d,D}z_n+z_n^2$、$\langle z_n\rangle=D$、$\langle z_n^2\rangle=\bar z_{n,D}D+D^2$。
+- **mod-SMK**（`analysis/analyze_mk.C`，闭式）：Inaniwa 式24，饱和 $z^*=z_0(1-e^{-(z/z_0)^2})$（式1，无 sqrt），只需单事件矩。
 - **经典 MK**：$\ln S=-(\alpha_0+\beta_0\bar z^*_{d,D})D-\beta_0 D^2$。
 
 **HSG 参数**（Sato2012 Table1）：DSMK α0=0.156, β0=0.0607, r_d=0.274, r_n=6.2, z0=89。

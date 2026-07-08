@@ -8,7 +8,7 @@
 #include <TH1.h>
 #include <TObject.h>
 
-void processMicrotrack(const char* filename = "microtrack.root")
+void processMicrotrack(const char* filename = "data/microtrack.root")
 {
   TFile* f = new TFile(filename, "UPDATE");
   if (!f || f->IsZombie()) {

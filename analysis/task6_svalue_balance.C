@@ -1,6 +1,6 @@
 // task6_svalue_balance.C  ——  任务 6.1 (S值) + 6.2 (能量平衡)
-// 6.1: S(N←N) from microtrack_Nuc.root (源在核内), 对比解析 + 文献量级
-// 6.2: 核能量平衡 from microtrack_membrane.root: <KinE_in>-<KinE_out> vs <edep_n>
+// 6.1: S(N←N) from data/microtrack_Nuc.root (源在核内), 对比解析 + 文献量级
+// 6.2: 核能量平衡 from data/microtrack_membrane.root: <KinE_in>-<KinE_out> vs <edep_n>
 
 #include <TFile.h>
 #include <TTree.h>
@@ -14,7 +14,7 @@ void task6_svalue_balance(){
   printf("核质量 m_n (R_n=%.1f um) = %.4g kg\n\n", Rn_um, m_n);
 
   // ===== 6.1 S(N←N) =====
-  TFile *fN=TFile::Open("microtrack_Nuc.root");
+  TFile *fN=TFile::Open("data/microtrack_Nuc.root");
   if(fN && !fN->IsZombie()){
     TTree *tN=(TTree*)fN->Get("events");
     TH1D hN("hN","",2000,0,5e6); tN->Project("hN","edep_n_keV");
@@ -36,11 +36,11 @@ void task6_svalue_balance(){
            Sanalytic, Sdecay/Sanalytic);
     printf("  文献量级(MIRDcell/Goddu, R_n~6um Ac-225): ~0.3-0.5 Gy/decay\n");
     fN->Close();
-  } else printf("!! 无 microtrack_Nuc.root\n");
+  } else printf("!! 无 data/microtrack_Nuc.root\n");
 
   // ===== 6.2 核能量平衡 =====
   printf("\n===== 6.2 核能量平衡 [膜面源, H1(12/13) vs edep_n] =====\n");
-  TFile *fM=TFile::Open("microtrack_membrane.root");
+  TFile *fM=TFile::Open("data/microtrack_membrane.root");
   if(fM && !fM->IsZombie()){
     TH1 *hKin=(TH1*)fM->Get("KinE_in"), *hKout=(TH1*)fM->Get("KinE_out");
     TTree *tM=(TTree*)fM->Get("events");
@@ -55,5 +55,5 @@ void task6_svalue_balance(){
            (Kin-Kout)-edep_MeV);
     printf("  比值 (KinE损/edep_n) = %.2f  (应略>1, δ逃逸所致)\n", (Kin-Kout)/edep_MeV);
     fM->Close();
-  } else printf("!! 无 microtrack_membrane.root\n");
+  } else printf("!! 无 data/microtrack_membrane.root\n");
 }
