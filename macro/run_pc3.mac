@@ -1,0 +1,45 @@
+#===================================#
+# PC3 细胞 + Ac-225 膜面源           #
+# 几何与 Sato2012 DSMK Table1 一致:  #
+#   r_d=0.274um  r_n=6.2um          #
+#===================================#
+
+/control/verbose 0
+/run/verbose 2
+/tracking/verbose 0
+
+/random/setSeeds 102 001
+
+###########################
+### SETUP CONFIGURATION ###
+###########################
+/mygeom/maxRange        100. um
+/mygeom/material        G4_WATER
+/mygeom/cellRadius       11.2 um      # > R_n=6.2
+/mygeom/nucleusRadius    6.4 um     # Sato2012 HSG r_n
+/mygeom/siteRadius       0.274 um   # Sato2012 HSG r_d
+/mygeom/killOutsideCell true
+/mygeom/killAtNucleus   true
+
+####################
+### PHYSICS LIST ###
+####################
+/physics/addPhysics dna_opt2
+/run/setCutForAGivenParticle gamma   0.01 um
+/run/setCutForAGivenParticle e-      0.01 um
+/run/setCutForAGivenParticle e+      0.01 um
+/run/setCutForAGivenParticle proton  0.01 um
+
+######################
+### INITIALIZATION ###
+######################
+/run/numberOfThreads 16
+/run/initialize
+
+/source/type ac225
+/source/compartment Membrane
+
+/run/particle/applyCuts true e-
+/run/particle/applyCuts true gamma
+
+/run/beamOn 5000

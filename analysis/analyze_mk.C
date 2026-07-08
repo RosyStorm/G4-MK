@@ -25,7 +25,7 @@ void analyze_mk(const char* fname = "data/microtrack.root",
                 double alpha0 = 0.174,   // 细胞系 α0 (HSG), Gy^-1  —— Inaniwa2018 Table1
                 double beta0  = 0.0568,  // 细胞系 β0 (HSG), Gy^-2
                 double z0     = 66.0,    // 饱和参数 z0 (HSG), Gy
-                double Dmax   = 15.0)    // 存活曲线剂量上限, Gy
+                double Dmax   = 5.0)    // 存活曲线剂量上限, Gy
 {
   // ---------- 1. 读 ntuple ----------
   TFile *f = TFile::Open(fname);
@@ -95,7 +95,7 @@ void analyze_mk(const char* fname = "data/microtrack.root",
   //   方括号项为 z_n 随机性修正(高LET下使 S 高于 MK)。低 LET 时 z̄_{n,D}→小, 项→1, 退化为 LQ。
   TGraph *gSMK = new TGraph(); gSMK->SetName("S_SMK");
   TGraph *gMK  = new TGraph(); gMK ->SetName("S_MK");
-  double Dstep = 0.25;
+  double Dstep = 0.01;
   for (double D=0.0; D<=Dmax+1e-9; D+=Dstep){
     double lq = TMath::Exp(-aS*D - bS*D*D);
     double bracket = 1.0 + (D*znD/2.0)*((aS+2.0*bS*D)*(aS+2.0*bS*D) - 2.0*bS);

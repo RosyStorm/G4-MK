@@ -37,8 +37,8 @@ double interp(const vector<double>& xv, const vector<double>& yv, double x){
 }
 
 void analyze_dsmk(const char* fname = "data/microtrack.root",
-                  double alpha0 = 0.156, double beta0 = 0.0607, double z0 = 89.0,
-                  double Dmax = 15.0)
+                  double alpha0 = 0.156, double beta0 = 0.0607, double z0 = 66.0,
+                  double Dmax = 5.0)
 {
   TFile *f=TFile::Open(fname);
   if(!f||f->IsZombie()){Error("analyze_dsmk","打不开 %s",fname);return;}
@@ -119,7 +119,7 @@ void analyze_dsmk(const char* fname = "data/microtrack.root",
   // ============ 5. DSMK S(D): 显式卷积 f_n(zn,D) → S(D)=∫Sn(zn) f_n dzn (式7) ============
   TGraph *gDSMK=new TGraph(); gDSMK->SetName("S_DSMK");
   int Ntrial=40000;
-  for(double D=0.0; D<=Dmax+1e-9; D+=0.25){
+  for(double D=0.0; D<=Dmax+1e-9; D+=0.1){
     double Ssum=0;
     for(int it=0; it<Ntrial; it++){
       int Nn=rnd.Poisson(D/znF);            // 抽核事件数
@@ -142,7 +142,7 @@ void analyze_dsmk(const char* fname = "data/microtrack.root",
   double aS=alpha0+beta0*zsD, bS=beta0*zsD/zdD, aM=alpha0+beta0*zsD, bM=beta0;
   TGraph *gMSMK=new TGraph(); gMSMK->SetName("S_mSMK");
   TGraph *gMK  =new TGraph(); gMK->SetName("S_MK");
-  for(double D=0; D<=Dmax+1e-9; D+=0.25){
+  for(double D=0; D<=Dmax+1e-9; D+=0.1){
     double corr=1+(D*znD/2.0)*((aS+2*bS*D)*(aS+2*bS*D)-2*bS); if(corr<0)corr=0;
     gMSMK->SetPoint(gMSMK->GetN(),D,exp(-aS*D-bS*D*D)*corr);
     gMK->SetPoint(gMK->GetN(),D,exp(-aM*D-bM*D*D));
