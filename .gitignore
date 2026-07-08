@@ -33,6 +33,7 @@ compile_commands.json
 *.xml
 *.hdf5
 *.g4analysis
+result/
 
 # ----- 运行日志 / 捕获输出 -----
 *.out
