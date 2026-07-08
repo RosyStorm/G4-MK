@@ -191,6 +191,7 @@ RunAction::RunAction()
   analysisManager->CreateNtupleIColumn("nHint");          // 9
   analysisManager->CreateNtupleIColumn("hitFlag");        // 10  1=命中核, 0=miss
   analysisManager->CreateNtupleIColumn("compartment");    // 11  0=Nuc,1=Cyt,2=Mem,3=Ext
+  analysisManager->CreateNtupleDColumn("edep_total_keV"); // 12 全局能量沉积(任务6.2)
   analysisManager->FinishNtuple();
 }
 

@@ -44,6 +44,10 @@
 
 void SteppingAction::UserSteppingAction(const G4Step* step)
 {
+  // 任务6.2: 累加全局能量沉积(全部体积、全部粒子, 用于能量平衡校验)
+  // 须在任何 kill 之前累加, 保证 killed 步的真实沉积也被计入
+  if (fEventAction) fEventAction->AddEdep(step->GetTotalEnergyDeposit());
+
   G4Track* track = step->GetTrack();
 
   // ===== #1 加速: 出细胞(R_cell)且向外运动的粒子直接 kill =====

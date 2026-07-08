@@ -45,6 +45,7 @@
 #include "globals.hh"
 
 #include "DetectorConstruction.hh"
+#include "EventAction.hh"
 #include "PrimaryGeneratorAction.hh"
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
@@ -350,5 +351,10 @@ void TrackerSD::EndOfEvent(G4HCofThisEvent*)
   analysisManager->FillNtupleIColumn(9, nHint);
   analysisManager->FillNtupleIColumn(10, nofHits > 0 ? 1 : 0);  // hitFlag
   analysisManager->FillNtupleIColumn(11, compId);               // compartment
+  // 任务6.2: 全局能量沉积(从 EventAction 读, SteppingAction 每步累加)
+  const auto* evtAct = dynamic_cast<const EventAction*>(
+    G4RunManager::GetRunManager()->GetUserEventAction());
+  G4double etot = evtAct ? evtAct->GetTotalEdep() : 0.;
+  analysisManager->FillNtupleDColumn(12, etot / keV);
   analysisManager->AddNtupleRow();
 }

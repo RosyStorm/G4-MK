@@ -57,10 +57,15 @@ class EventAction : public G4UserEventAction
     G4bool HaveVertex() const { return fHaveVertex; }
     void UpdateMaxRange(const G4ThreeVector& pos);
 
+    // 任务6.2: 全局能量沉积累加(SteppingAction 每步调用, 含全部体积/全部粒子)
+    void AddEdep(G4double e) { fTotalEdep += e; }
+    G4double GetTotalEdep() const { return fTotalEdep; }
+
   private:
     G4ThreeVector fPrimaryVertex{};
     G4double fMaxRange = 0.;
     G4bool fHaveVertex = false;
+    G4double fTotalEdep = 0.;  // 全局能量沉积(任务6.2 能量平衡)
 };
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......

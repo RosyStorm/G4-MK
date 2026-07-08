@@ -40,6 +40,7 @@ void EventAction::BeginOfEventAction(const G4Event* /*anEvent*/)
   fMaxRange = 0.;
   fHaveVertex = false;
   fPrimaryVertex = G4ThreeVector();
+  fTotalEdep = 0.;  // 任务6.2: 每事件重置全局能量沉积
 }
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
