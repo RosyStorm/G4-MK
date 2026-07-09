@@ -24,7 +24,10 @@
 // ********************************************************************
 //
 /// \file PrimaryGeneratorMessenger.cc
-/// \brief Implementation of the PrimaryGeneratorMessenger class
+/// \brief PrimaryGeneratorMessenger 类的实现：注册初级粒子源相关的 UI 命令
+///
+/// 该 Messenger 向 UI 暴露 /beam/ 与 /source/ 目录下的命令，用于在运行时
+/// 设置粒子源位置、源类型与分布区间，并将命令转发给 PrimaryGeneratorAction。
 
 #include "PrimaryGeneratorMessenger.hh"
 
@@ -40,33 +43,42 @@ PrimaryGeneratorMessenger::PrimaryGeneratorMessenger(
   PrimaryGeneratorAction* primaryGen)
   : G4UImessenger(), fPrimaryAction(primaryGen)
 {
-  fGunDir = std::make_unique<G4UIdirectory>("/beam/");
-  fGunDir->SetGuidance("PrimaryGenerator control");
+  /// 构造函数：注册 /beam/ 与 /source/ 目录及其下的 UI 命令。
+  /// 包括粒子源 Z 坐标、源类型(proton/ac225/alpha)以及 Ac-225 的分布区间。
+  /// @param primaryGen 关联的 PrimaryGeneratorAction 对象指针，命令将转发给该对象
 
+  // —— 束流(beam)命令目录 ——
+  fGunDir = std::make_unique<G4UIdirectory>("/beam/");
+  fGunDir->SetGuidance("初级粒子产生器控制命令");
+
+  // —— 设置粒子源 Z 坐标命令 ——
   fZ0Cmd =
     std::make_unique<G4UIcmdWithADoubleAndUnit>("/beam/position/Z0", this);
-  fZ0Cmd->SetGuidance("Set Z coordinate of the particle source");
+  fZ0Cmd->SetGuidance("设置粒子源的 Z 坐标");
   fZ0Cmd->SetParameterName("posZ", false);
   fZ0Cmd->SetDefaultValue(0.0);
   fZ0Cmd->SetDefaultUnit("cm");
   fZ0Cmd->SetUnitCategory("Length");
   fZ0Cmd->AvailableForStates(G4State_PreInit, G4State_Idle);
 
+  // —— 源(source)命令目录 ——
   fSourceDir = std::make_unique<G4UIdirectory>("/source/");
-  fSourceDir->SetGuidance("Particle source type control");
+  fSourceDir->SetGuidance("粒子源类型控制命令");
 
+  // —— 设置粒子源类型命令 ——
   fSourceTypeCmd = std::make_unique<G4UIcmdWithAString>("/source/type", this);
   fSourceTypeCmd->SetGuidance(
-    "Source type: proton (baseline) | ac225 (Ac-225 alpha, compartment set by /source/compartment)"
-    " | alpha (mono-energetic alpha for range validation, energy from /gun/energy)");
+    "源类型：proton（基线）| ac225（Ac-225 alpha，分布区间由 /source/compartment 设定）"
+    " | alpha（用于射程验证的单能 alpha，能量由 /gun/energy 设定）");
   fSourceTypeCmd->SetParameterName("type", false);
   fSourceTypeCmd->SetCandidates("proton ac225 alpha");
   fSourceTypeCmd->SetDefaultValue("ac225");
   fSourceTypeCmd->AvailableForStates(G4State_PreInit, G4State_Idle);
 
+  // —— 设置 Ac-225 分布区间命令 ——
   fCompartmentCmd = std::make_unique<G4UIcmdWithAString>("/source/compartment", this);
   fCompartmentCmd->SetGuidance(
-    "Source compartment (ac225): Nucleus | Cytoplasm | Membrane | Extracellular");
+    "源分布区间(ac225)：Nucleus | Cytoplasm | Membrane | Extracellular");
   fCompartmentCmd->SetParameterName("comp", false);
   fCompartmentCmd->SetCandidates("Nucleus Cytoplasm Membrane Extracellular");
   fCompartmentCmd->SetDefaultValue("Membrane");
@@ -82,12 +94,20 @@ PrimaryGeneratorMessenger::~PrimaryGeneratorMessenger() = default;
 void PrimaryGeneratorMessenger::SetNewValue(G4UIcommand* command,
                                             G4String newValue)
 {
+  /// 命令分发：根据 command 指针将 UI 传入的新值转发给 PrimaryGeneratorAction。
+  /// 注意：此处使用独立 if（非 else if），保持与原逻辑一致。
+  /// @param command 指向触发的 UI 命令对象
+  /// @param newValue UI 传入的命令参数字符串
+
+  // 粒子源 Z 坐标
   if (command == fZ0Cmd.get()) {
     fPrimaryAction->SetPositionZ(fZ0Cmd->GetNewDoubleValue(newValue));
   }
+  // 粒子源类型
   if (command == fSourceTypeCmd.get()) {
     fPrimaryAction->SetSourceType(newValue);
   }
+  // Ac-225 分布区间
   if (command == fCompartmentCmd.get()) {
     fPrimaryAction->SetCompartment(newValue);
   }

@@ -24,7 +24,7 @@
 // ********************************************************************
 //
 /// \file PhysicsListMessenger.hh
-/// \brief Definition of the PhysicsListMessenger class
+/// \brief PhysicsListMessenger 类的定义：物理列表的 UI 命令交互
 
 #ifndef PhysicsListMessenger_h
 #define PhysicsListMessenger_h 1
@@ -42,18 +42,25 @@ class G4UIdirectory;
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
 
+/// @brief 物理列表交互命令类
+///
+/// 定义 /physics/ 命令目录下的 UI 命令，使用户可在运行时（宏文件或交互式会话）
+/// 切换电磁物理构造器。命令转发给 PhysicsList::AddPhysicsList。
 class PhysicsListMessenger : public G4UImessenger
 {
   public:
-    PhysicsListMessenger(PhysicsList*);
-    ~PhysicsListMessenger() override;
+    PhysicsListMessenger(PhysicsList*);   // 注册 /physics/ 命令
+    ~PhysicsListMessenger() override;     // 析构（命令对象由智能指针释放）
+    /// 响应 UI 命令赋值，转发给 PhysicsList 的对应方法。
+    /// @param command 触发的 UI 命令指针
+    /// @param newVal 用户输入的新值字符串
     void SetNewValue(G4UIcommand*, G4String) override;
 
   private:
-    PhysicsList* fPL = nullptr;
-
-    std::unique_ptr<G4UIdirectory> fPhysDir;
-    std::unique_ptr<G4UIcmdWithAString> fPhysicsListCmd;
+    // ===== 命令目标与命令对象 =====
+    PhysicsList* fPL = nullptr;                              // 关联的物理列表对象
+    std::unique_ptr<G4UIdirectory> fPhysDir;                 // /physics/ 命令目录
+    std::unique_ptr<G4UIcmdWithAString> fPhysicsListCmd;     // /physics/addPhysics 命令
 };
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......

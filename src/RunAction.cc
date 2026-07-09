@@ -24,7 +24,10 @@
 // ********************************************************************
 //
 /// \file RunAction.cc
-/// \brief Implementation of the RunAction class
+/// \brief RunAction 类的实现：Run 级动作
+///
+/// 负责初始化 Geant4 分析管理器(ROOT 输出)、创建直方图与 ntuple、
+/// 在 Run 结束时打印微剂量学统计（频率均值/剂量均值等）并写入 ROOT 文件。
 
 #include "RunAction.hh"
 
@@ -38,25 +41,27 @@
 
 RunAction::RunAction()
 {
-  // Create analysis manager
+  /// 构造函数：创建分析管理器并定义全部直方图与 ntuple 的分箱方案。
+
+  // —— 创建分析管理器 ——
   auto analysisManager = G4AnalysisManager::Instance();
 
   analysisManager->SetVerboseLevel(1);
   analysisManager->SetNtupleMerging(true);
 
-  // Define binning for each sort of histogram
-  //
-  //  Kinetic energy at the entrance and exit histograms
-  const G4double kinEmin = 0.;
-  const G4double kinEmax = 300.;
-  const G4double kinEbinWidth = 0.1;
+  // ===== 定义各类直方图的分箱方案 =====
+
+  // —— 动能入射/出射直方图的线性分箱 ——
+  const G4double kinEmin = 0.;            // 动能下限
+  const G4double kinEmax = 300.;          // 动能上限
+  const G4double kinEbinWidth = 0.1;      // bin 宽
   const G4int kinEbins =
     static_cast<G4int>((kinEmax - kinEmin) / kinEbinWidth);
 
-  // Logarithmic binning for energy histograms
-  const G4int minLog10E = -4.;
-  const G4int maxLog10E = +4.;
-  const G4int nBinsLog10E = (maxLog10E - minLog10E) * 50;
+  // —— 能量直方图的对数分箱 ——
+  const G4int minLog10E = -4.;            // log10 下限
+  const G4int maxLog10E = +4.;            // log10 上限
+  const G4int nBinsLog10E = (maxLog10E - minLog10E) * 50;  // bin 数(每量级 50 bin)
 
   G4double binsLog10E[nBinsLog10E + 1];
   G4double binWidthLog10E =
@@ -68,8 +73,7 @@ RunAction::RunAction()
 
   std::vector<G4double> vecBinsLog10E(binsLog10E, binsLog10E + nBinsLog10E + 1);
 
-  // Logarithmic binning for weighted numbers histograms
-
+  // —— 加权计数直方图的对数分箱 ——
   const G4int minLog10W = 0;
   const G4int maxLog10W = +6;
   const G4int nBinsLog10W = (maxLog10W - minLog10W) * 50;
@@ -84,16 +88,15 @@ RunAction::RunAction()
 
   std::vector<G4double> vecBinsLog10W(binsLog10W, binsLog10W + nBinsLog10W + 1);
 
-  // Linear binning for counter histograms
+  // —— 计数直方图的线性分箱 ——
   // 注: α 等高 LET 粒子在核内可产生数万~数十万 hit, 上限需足够大以免溢出致 mean 失真
   G4int minCount = 0;
   G4int maxCount = 500000;
   G4int nBinsCount = (maxCount - minCount) / 100;
 
-  // Create histograms
-  //
+  // ===== 创建直方图 =====
 
-  // Logarithmic binning  Energy histograms
+  // —— 能量谱直方图(对数分箱) ——
   analysisManager->CreateH1(
     "fe",
     "Energy imparted per event [keV] (log binning)",
@@ -109,7 +112,7 @@ RunAction::RunAction()
     "Squared-weighted energy imparted per event [keV] (log binning)",
     vecBinsLog10E);
 
-  // Logarithmic binning for lineal energy histograms
+  // —— 线能直方图(对数分箱) ——
   analysisManager->CreateH1("fy", "Lineal energy [keV/um] (log binning)",
                             vecBinsLog10E);
 
@@ -121,7 +124,7 @@ RunAction::RunAction()
     "y2fy",
     "Squared-weighted lineal energy [keV/um] (log binning)", vecBinsLog10E);
 
-  // Logarithmic binning for specific energy histograms
+  // —— 比能直方图(对数分箱) ——
   analysisManager->CreateH1(
     "fz",
     "Single-event specific energy [Gy] (log binning)",
@@ -137,7 +140,7 @@ RunAction::RunAction()
     "Squared-weighted single-event specific energy [Gy] (log binning)",
     vecBinsLog10E);
 
-  // Counters histograms
+  // —— 命中计数直方图(线性分箱) ——
   analysisManager->CreateH1(
     "Nsel", "Number of selectable hits per event",
     nBinsCount, minCount, maxCount);
@@ -150,13 +153,13 @@ RunAction::RunAction()
     "Number of selectable hits in site", nBinsCount,
     minCount, maxCount);
 
-  // Kinetic energy at the entrance and exit histograms
+  // —— 核边界入射/出射动能直方图 ——
   analysisManager->CreateH1("KinE_in", "Kinetic energy at the entrance [MeV]",
                             kinEbins, kinEmin, kinEmax);
   analysisManager->CreateH1("KinE_out", "Kinetic energy at the exit [MeV]",
                             kinEbins, kinEmin, kinEmax);
 
-  // 2D histogram for Nsite vs weighted Edep
+  // —— 域内命中数 vs 加权能量沉积 (2D) ——
   analysisManager->CreateH2(
     "Nsite_vs_e",
     "Number of hits in site vs energy imparted [keV] (log-log)",
@@ -176,7 +179,7 @@ RunAction::RunAction()
   analysisManager->CreateH1(
     "z2nfzn", "Squared-weighted z_n [Gy] (log binning)", vecBinsLog10E);
 
-  // 任务4.2：逐事件配对 ntuple —— 每事件一行，hit/miss 都填
+  // —— 任务4.2：逐事件配对 ntuple —— 每事件一行，hit/miss 都填 ——
   // 后处理(ROOT)可算 z_d/z_n 边缘谱、联合分布、条件 f(z_d|z_n)、多事件卷积与 SMK 存活曲线
   analysisManager->CreateNtuple("events", "Per-event microdosimetry (task 4.2)");
   analysisManager->CreateNtupleIColumn("eventID");        // 0
@@ -204,22 +207,24 @@ RunAction::~RunAction() = default;
 
 void RunAction::BeginOfRunAction(const G4Run* /*aRun*/)
 {
-  // inform the runManager to save random number seed
+  /// Run 开始时打开 ROOT 输出文件。
+  /// @param aRun 当前 Run 对象（未使用）
+
+  // 通知 runManager 保存随机数种子（当前注释掉）
   // G4RunManager::GetRunManager()->SetRandomNumberStore(true);
 
-  // Get analysis manager
+  // —— 获取分析管理器 ——
   auto analysisManager = G4AnalysisManager::Instance();
 
-  // Open an output file
-  // The file extension will set the choice of the output format
-  // 注: 输出统一放到 data/ 子目录(相对当前工作目录), 便于和源码/macro/analysis 分离
+  // —— 打开输出文件 ——
+  // 文件扩展名决定输出格式；输出统一放到 data/ 子目录，便于和源码/macro/analysis 分离
   G4String fileName = "data/microtrack.root";
-  // Other formats supported: .csv, .hdf5, .xml
+  // 其他支持格式: .csv, .hdf5, .xml
   // G4String fileName = "data/microtrack.csv";
   // G4String fileName = "data/microtrack.hdf5";
   // G4String fileName = "data/microtrack.xml";
   analysisManager->OpenFile(fileName);
-  G4cout << "Using " << analysisManager->GetType() << G4endl;
+  G4cout << "使用 " << analysisManager->GetType() << " 分析管理器" << G4endl;
 }
 
 
@@ -227,73 +232,75 @@ void RunAction::BeginOfRunAction(const G4Run* /*aRun*/)
 
 void RunAction::EndOfRunAction(const G4Run* /*aRun*/)
 {
+  /// Run 结束时打印直方图统计并写入/关闭 ROOT 文件。
+  /// @param aRun 当前 Run 对象（未使用）
+
   auto analysisManager = G4AnalysisManager::Instance();
 
+  // —— 仅主线程打印整 Run 统计（且直方图 1 存在时）——
   if (IsMaster() && analysisManager->GetH1(1)) {
 
     G4cout << G4endl;
 
-    G4cout << "----> print histogram statistics for the entire run: "
+    G4cout << "----> 整个 Run 的直方图统计: "
            << G4endl << G4endl;
 
-    // print histogram statistics
-    //
-
-    G4cout << "  Single-event energy imparted:\n"
+    // —— 打印直方图统计 ——
+    G4cout << "  单事件授与能:\n"
            << "  ----------------------------"
            << G4endl << G4endl;
 
-    G4cout << "    Frequency-mean: \\varepsilon_{1,F} = "
+    G4cout << "    频率均值: \\varepsilon_{1,F} = "
            << analysisManager->GetH1(0)->mean() << " keV "
            << " (rms = " << analysisManager->GetH1(0)->rms() << " keV)"
            << G4endl;
 
-    G4cout << "    Dose-mean: \\varepsilon_{1,D} = "
+    G4cout << "    剂量均值: \\varepsilon_{1,D} = "
            << analysisManager->GetH1(1)->mean() << " keV "
            << " (rms = " << analysisManager->GetH1(1)->rms() << " keV)"
            << G4endl;
 
-    G4cout << "    Squared-weighted histogram: mean = "
+    G4cout << "    加权平方直方图: 均值 = "
            << analysisManager->GetH1(2)->mean() << " keV "
            << " (rms = " << analysisManager->GetH1(2)->rms() << " keV)"
            << G4endl;
 
     G4cout << G4endl
-           << "  Lineal energy:\n"
+           << "  线能:\n"
            << "  -------------"
            << G4endl << G4endl;
 
-    G4cout << "    Frequency-mean: y_F = "
+    G4cout << "    频率均值: y_F = "
            << analysisManager->GetH1(3)->mean() << " keV/um "
            << " (rms = " << analysisManager->GetH1(3)->rms() << " keV/um)"
            << G4endl;
 
-    G4cout << "    Dose-mean: y_D = "
+    G4cout << "    剂量均值: y_D = "
            << analysisManager->GetH1(4)->mean() << " keV/um "
            << " (rms = " << analysisManager->GetH1(4)->rms() << " keV/um)"
            << G4endl;
 
-    G4cout << "    Squared-weighted histogram: mean = "
+    G4cout << "    加权平方直方图: 均值 = "
            << analysisManager->GetH1(5)->mean() << " keV/um "
            << " (rms = " << analysisManager->GetH1(5)->rms() << " keV/um)"
            << G4endl;
 
     G4cout << G4endl
-           << "  Single-event specific energy:\n"
+           << "  单事件比能:\n"
            << "  ----------------------------"
            << G4endl << G4endl;
 
-    G4cout << "    Frequency-mean: z_{1,F} = "
+    G4cout << "    频率均值: z_{1,F} = "
            << analysisManager->GetH1(6)->mean() << " Gy "
            << " (rms = " << analysisManager->GetH1(6)->rms() << " Gy)"
            << G4endl;
 
-    G4cout << "    Dose-mean: z_{1,D} = "
+    G4cout << "    剂量均值: z_{1,D} = "
            << analysisManager->GetH1(7)->mean() << " Gy "
            << " (rms = " << analysisManager->GetH1(7)->rms() << " Gy)"
            << G4endl;
 
-    G4cout << "    Squared-weighted histogram: mean = "
+    G4cout << "    加权平方直方图: 均值 = "
            << analysisManager->GetH1(8)->mean() << " Gy"
            << " (rms = " << analysisManager->GetH1(8)->rms() << " Gy)"
            << G4endl;
@@ -304,51 +311,51 @@ void RunAction::EndOfRunAction(const G4Run* /*aRun*/)
     if (idZnF >= 0 && analysisManager->GetH1(idZnF) && idZnD >= 0
         && analysisManager->GetH1(idZnD)) {
       G4cout << G4endl
-             << "  Single-event NUCLEUS specific energy (z_n, task 4.1):\n"
+             << "  核单事件比能 (z_n, 任务4.1):\n"
              << "  ---------------------------------------------------"
              << G4endl << G4endl;
-      G4cout << "    Frequency-mean: z_{n,F} = "
+      G4cout << "    频率均值: z_{n,F} = "
              << analysisManager->GetH1(idZnF)->mean() << " Gy "
              << " (rms = " << analysisManager->GetH1(idZnF)->rms() << " Gy)"
              << G4endl;
-      G4cout << "    Dose-mean:      z_{n,D} = "
+      G4cout << "    剂量均值:      z_{n,D} = "
              << analysisManager->GetH1(idZnD)->mean() << " Gy "
              << " (rms = " << analysisManager->GetH1(idZnD)->rms() << " Gy)"
              << G4endl;
     }
 
     G4cout << G4endl
-           << "  Number of hits per event:\n"
+           << "  每事件命中数:\n"
            << "  ------------------------"
            << G4endl << G4endl;
 
-    G4cout << "    Eligible for site random placement, N_{sel}: mean = "
+    G4cout << "    可用于域随机放置的, N_{sel}: 均值 = "
            << analysisManager->GetH1(9)->mean()
            << " (rms = " << analysisManager->GetH1(9)->rms() << ")"
            << G4endl;
 
-    G4cout << "    Within the site, N_{site}: mean = "
+    G4cout << "    域内的, N_{site}: 均值 = "
            << analysisManager->GetH1(10)->mean()
            << " (rms = " << analysisManager->GetH1(10)->rms() << ")"
            << G4endl;
 
-    G4cout << "    Within the site and eligible for site random placement,"
-           << " N_{int}: mean = " << analysisManager->GetH1(11)->mean()
+    G4cout << "    域内且可用于域随机放置的,"
+           << " N_{int}: 均值 = " << analysisManager->GetH1(11)->mean()
            << " (rms = " << analysisManager->GetH1(11)->rms() << ")"
            << G4endl;
 
     G4cout << G4endl
-           << "  Kinetic energy of the primary particle:\n"
+           << "  初级粒子动能:\n"
            << "  --------------------------------------"
            << G4endl << G4endl;
 
-    G4cout << "    At entrance of Nucleus, T_{in}: mean = "
+    G4cout << "    入射核时, T_{in}: 均值 = "
            << G4BestUnit(analysisManager->GetH1(12)->mean(), "Energy")
            << " (rms = "
            << G4BestUnit(analysisManager->GetH1(12)->rms(), "Energy") << ")"
            << G4endl;
 
-    G4cout << "    At exit of Nucleus, T_{out}: mean = "
+    G4cout << "    出射核时, T_{out}: 均值 = "
            << G4BestUnit(analysisManager->GetH1(13)->mean(), "Energy")
            << " (rms = "
            << G4BestUnit(analysisManager->GetH1(13)->rms(), "Energy") << ")"
@@ -357,8 +364,7 @@ void RunAction::EndOfRunAction(const G4Run* /*aRun*/)
     G4cout << G4endl;
   }
 
-  // save histograms & ntuple
-  //
+  // —— 保存直方图与 ntuple 到文件 ——
   analysisManager->Write();
   analysisManager->CloseFile();
 

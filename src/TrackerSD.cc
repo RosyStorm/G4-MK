@@ -24,7 +24,11 @@
 // ********************************************************************
 //
 /// \file TrackerSD.cc
-/// \brief Implementation of the TrackerSD class
+/// \brief TrackerSD 类的实现：细胞核敏感探测器
+///
+/// 挂载于细胞核逻辑体积，收集核内能量沉积命中(Hit)，并进行微剂量学单事件打分：
+/// 域(site)随机抽样、线能 y、比能 z、核级比能 z_n 等，
+/// 结果写入分析管理器的直方图与 ntuple，供后处理计算 S 值、LQ 参数等。
 
 #include "TrackerSD.hh"
 
@@ -49,10 +53,17 @@
 #include "PrimaryGeneratorAction.hh"
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
+
 TrackerSD::TrackerSD(const G4String& sdName, const G4String& hitsCollectionName,
                      const int /*depthIndex*/)
   : G4VSensitiveDetector(sdName)
 {
+  /// 构造函数：设置敏感探测器名称并登记命中集合名称。
+  /// @param sdName 敏感探测器名称（对应细胞核体积名称）
+  /// @param hitsCollectionName 命中集合名称（注册到 collectionName 容器）
+  /// @param depthIndex 层次深度参数（当前未使用）
+
+  // 将命中集合名称登记到基类的 collectionName 容器
   collectionName.insert(hitsCollectionName);
 }
 
@@ -64,11 +75,14 @@ TrackerSD::~TrackerSD() = default;
 
 void TrackerSD::Initialize(G4HCofThisEvent* hce)
 {
-  // Create hits collection
+  /// 事件开始时创建并注册本事件的命中集合。
+  /// @param hce 本事件的命中集合容器（HCofThisEvent）
+
+  // —— 创建命中集合 ——
   fHitsCollection =
     new TrackerHitColl(SensitiveDetectorName, collectionName[0]);
 
-  // Add this collection in hce
+  // —— 向全局命中容器注册本集合 ——
   G4int collID =
     G4SDManager::GetSDMpointer()->GetCollectionID(collectionName[0]);
 
@@ -79,17 +93,20 @@ void TrackerSD::Initialize(G4HCofThisEvent* hce)
 
 G4bool TrackerSD::ProcessHits(G4Step* aStep, G4TouchableHistory*)
 {
-  // Get the track
+  /// 每步步长处理：若有能量沉积则记录一个命中。
+  /// 同时对初级粒子(parentID==0)记录核边界入射/出射动能(诊断量)。
+  /// @param aStep 当前步对象
+  /// @return 该步有非零能量沉积时返回 true，否则 false
+
+  // —— 获取径迹与步端点 ——
   G4Track* aTrack = aStep->GetTrack();
+  G4StepPoint* preStepPoint = aStep->GetPreStepPoint();    // 步前点
+  G4StepPoint* postStepPoint = aStep->GetPostStepPoint();  // 步后点
 
-  // Get Pre and Post step points
-  G4StepPoint* preStepPoint = aStep->GetPreStepPoint();
-  G4StepPoint* postStepPoint = aStep->GetPostStepPoint();
-
-  // Get ParentID
+  // 获取母粒子 ID，用于判定是否为初级粒子
   G4int parentID = aTrack->GetParentID();
 
-  // Only for primary particles: 记录核边界入射/出射动能
+  // —— 仅对初级粒子记录核边界入射/出射动能 ——
   // 注: 用 fGeomBoundary 状态位判定。对 DNA 物理下的 α 离子边界步该状态位可能不触发,
   //     故 α 的 T_in/T_out 可能为空(诊断量, 不影响 z/y/ε 打分)。
   //     若任务6.2 需精确能量平衡, 改用 G4UserSteppingAction 按体积过渡判定。
@@ -102,20 +119,18 @@ G4bool TrackerSD::ProcessHits(G4Step* aStep, G4TouchableHistory*)
     }
   }
 
-  // Get the energy deposit
+  // —— 获取本步能量沉积；为零则跳过 ——
   G4double edep = aStep->GetTotalEnergyDeposit();
   if (edep == 0.) return false;
 
-  // Declare a new hit
+  // —— 创建新命中并填充能量与位置 ——
   auto newHit = new TrackerHit();
-
   newHit->SetEdep(edep);
 
-  // Get the position of the hit
-  G4ThreeVector Pos = postStepPoint->GetPosition();
-  newHit->SetPosition(Pos);
+  G4ThreeVector hitPosition = postStepPoint->GetPosition();  // 命中位置(步后点)
+  newHit->SetPosition(hitPosition);
 
-  // Add the hit to the collection
+  // 将命中加入集合
   fHitsCollection->insert(newHit);
 
   return true;
@@ -125,55 +140,59 @@ G4bool TrackerSD::ProcessHits(G4Step* aStep, G4TouchableHistory*)
 
 void TrackerSD::EndOfEvent(G4HCofThisEvent*)
 {
+  /// 事件结束时的微剂量学打分。
+  /// 完成域(site)随机抽样、线能 y / 比能 z / 核级比能 z_n 计算，
+  /// 填充直方图与逐事件 ntuple（hit/miss 事件均记录一行）。
+
+  // —— 统计本事件命中数 ——
   const auto nofHits = fHitsCollection->entries();
 
   if (verboseLevel > 0) {
-    G4cout << "  Hits Collection: in this event, we have " << nofHits
-           << " hits in the tracker." << G4endl;
+    G4cout << "  本事件命中集合共有 " << nofHits << " 个命中。" << G4endl;
   }
 
   // 注：miss 事件(nofHits==0, 如膜/胞外源 α 未命中核)不再早返回——
   // ntuple 用 hitFlag=0 记录(任务4.2)；直方图 f_{n,1} 由各 if(nucleusEdep>0)/if(nHint>0) 自然过滤。
 
-  // Get the DetectorConstruction instance
+  // —— 获取探测器几何参数（核半径、域半径、材料密度）——
   const DetectorConstruction* detConstruction =
     static_cast<const DetectorConstruction*>(
       G4RunManager::GetRunManager()->GetUserDetectorConstruction());
 
-  // Declare variables for the dimensions of the detector
-  G4double nucleusRadius = 0.;
-  G4double site_radius = 0.;
-  G4double DetDensity = 0.;
-  G4ThreeVector hitPos;
-  G4ThreeVector randCenterPos;
+  G4double nucleusRadius = 0.;      // 细胞核半径
+  G4double siteRadius = 0.;         // 域(site)半径
+  G4double detectorDensity = 0.;    // 探测器材料密度
+  G4ThreeVector hitPos;             // 选中的命中位置(用于 site 抽样)
+  G4ThreeVector randCenterPos;      // site 球随机中心位置
 
   if (detConstruction) {
-    site_radius = detConstruction->GetSiteRadius();
+    siteRadius = detConstruction->GetSiteRadius();
     nucleusRadius = detConstruction->GetNucleusRadius();
     auto mat = G4Material::GetMaterial(detConstruction->GetMaterial());
     if (mat)
-      DetDensity = mat->GetDensity();
+      detectorDensity = mat->GetDensity();
     else {
       G4ExceptionDescription msg;
-      msg << "Material not found."
-          << "Something unexpected has occurred." << G4endl;
+      msg << "未找到材料，发生意外情况。" << G4endl;
       G4Exception("TrackerSD::EndOfEvent()", "TrackerSD002", JustWarning, msg);
     }
   }
   else {
     G4ExceptionDescription msg;
-    msg << "Detector construction not found."
-        << "Something unexpected has occurred." << G4endl;
+    msg << "未找到探测器构造，发生意外情况。" << G4endl;
     G4Exception("TrackerSD::EndOfEvent()", "TrackerSD001", JustWarning, msg);
   }
-  G4int nHsel = 0;  // number of hits in the selection region
-  G4int nHsite = 0;  // number of hits in the site
-  G4int nHint = 0;  // number of hits both in site and selection region
-  G4double evtEdep = 0.;  // 域内能量沉积(单事件)
+
+  // —— 事件级计数器与能量累加器 ——
+  G4int nHsel = 0;            // 选择区(核内)命中数
+  G4int nHsite = 0;           // 域(site)内命中数
+  G4int nHint = 0;            // 同时在域内与选择区内的命中数
+  G4double evtEdep = 0.;      // 域内能量沉积(单事件)
   G4double nucleusEdep = 0.;  // 核内总能量沉积(单事件, 任务4.1 用于 z_n)
 
+  // —— 若有命中，随机选取一个命中作为 site 抽样锚点 ——
   if (nofHits > 0) {
-    const G4int maxTries = 1000;
+    const G4int maxTries = 1000;  // 最大尝试次数
     G4int tries = 0;
     G4bool found = false;
 
@@ -187,9 +206,9 @@ void TrackerSD::EndOfEvent(G4HCofThisEvent*)
       //   满足 |randCenterPos| + r_d ≤ R_n. 由于 randCenterPos = hitPos + 偏移(|偏移|≤r_d),
       //   充要条件是 |hitPos| ≤ R_n - r_d. 这样保证 site 完全在核内,
       //   避免 site 部分超出核导致 nHint 偏小、nHsel/nHint 加权比偏高.
-      if (hitPosition.mag() <= nucleusRadius - site_radius)
+      if (hitPosition.mag() <= nucleusRadius - siteRadius)
       {
-        hitPos = hitPosition;  // store valid hit position
+        hitPos = hitPosition;  // 记录有效的命中位置
 
         found = true;
       }
@@ -197,16 +216,16 @@ void TrackerSD::EndOfEvent(G4HCofThisEvent*)
     }
 
     if (found) {
-      G4double site_radius2 = site_radius * site_radius;
+      G4double siteRadius2 = siteRadius * siteRadius;  // 域半径平方
 
-      // Random placement of a sphere center containing the hit
+      // 在命中点周围随机放置 site 球心（球内均匀采样偏移量）
       G4double xRand, yRand, zRand, randRad2;
       do {
-        xRand = (2 * G4UniformRand() - 1) * site_radius;
-        yRand = (2 * G4UniformRand() - 1) * site_radius;
-        zRand = (2 * G4UniformRand() - 1) * site_radius;
+        xRand = (2 * G4UniformRand() - 1) * siteRadius;
+        yRand = (2 * G4UniformRand() - 1) * siteRadius;
+        zRand = (2 * G4UniformRand() - 1) * siteRadius;
         randRad2 = xRand * xRand + yRand * yRand + zRand * zRand;
-      } while (randRad2 > site_radius2);
+      } while (randRad2 > siteRadius2);
 
       randCenterPos = G4ThreeVector(xRand + hitPos.x(), yRand + hitPos.y(),
                                     zRand + hitPos.z());
@@ -214,41 +233,39 @@ void TrackerSD::EndOfEvent(G4HCofThisEvent*)
 
     else {
       G4cout
-        << "In this event, no hits were found in the nucleus "
-        << "after trying " << tries << " times." << G4endl
-        << "Please consider checking the source position / nucleus radius."
-        << G4endl;
+        << "本事件尝试 " << tries << " 次后仍未在核内找到命中。" << G4endl
+        << "请检查源位置 / 核半径是否合理。" << G4endl;
       // 不再 return: miss 事件仍需填 ntuple(hitFlag=0), 保持任务 4.2 hit/miss 都记录的设计
       // 此时 nHsel=nHsite=nHint=0, evtEdep=0; z_n/z_d 直方图被 if(nucleusEdep>0)/if(nHint>0) 自然过滤
     }
   }
 
-  // Loop over hits
+  // —— 遍历所有命中，累加能量并统计各区域命中数 ——
   for (std::size_t jj = 0; jj < nofHits; jj++) {
-    auto hit2 = (*fHitsCollection)[jj];
-    G4ThreeVector hit2Position = hit2->GetPosition();
+    auto currentHit = (*fHitsCollection)[jj];
+    G4ThreeVector currentHitPosition = currentHit->GetPosition();
 
     // 核总能量累加(所有 hit 均在核内, SD 在核上)
-    nucleusEdep += hit2->GetEdep();
+    nucleusEdep += currentHit->GetEdep();
 
     // 判定该 hit 是否落在细胞核内
-    G4bool inNucleus = (hit2Position.mag() < nucleusRadius);
+    G4bool inNucleus = (currentHitPosition.mag() < nucleusRadius);
 
-    // Check if the hit is within the site
-    G4double dist = (hit2Position - randCenterPos).mag();
-    if (dist < site_radius) {
+    // 判定该 hit 是否落在域(site)内
+    G4double dist = (currentHitPosition - randCenterPos).mag();
+    if (dist < siteRadius) {
       nHsite++;
-      evtEdep += hit2->GetEdep();
+      evtEdep += currentHit->GetEdep();
     }
 
-    // Check if the hit is within the nucleus
+    // 核内命中计数
     if (inNucleus) nHsel++;
 
-    // Check if the hit is within the nucleus and the site
-    if (dist < site_radius && inNucleus) nHint++;
+    // 同时在域内且在核内的命中计数
+    if (dist < siteRadius && inNucleus) nHint++;
   }
 
-  // Access the analysis manager
+  // —— 获取分析管理器 ——
   auto analysisManager = G4AnalysisManager::Instance();
 
   // ===== P0 修复 #1: 补加出射边界步核内 edep =====
@@ -265,8 +282,8 @@ void TrackerSD::EndOfEvent(G4HCofThisEvent*)
   // ===== 核级比能 z_n (任务4.1)：核内总沉积 / 核质量，无加权(核是整个位点) =====
   G4double massNucleus =
     (4. / 3.) * CLHEP::pi * nucleusRadius * nucleusRadius * nucleusRadius
-    * DetDensity;
-  G4double z_n = nucleusEdep / massNucleus;
+    * detectorDensity;        // 核质量
+  G4double z_n = nucleusEdep / massNucleus;  // 核级比能
   if (nucleusEdep > 0.) {
     G4double zn = z_n / gray;
     G4int idF = analysisManager->GetH1Id("fzn");
@@ -277,58 +294,58 @@ void TrackerSD::EndOfEvent(G4HCofThisEvent*)
     if (idZ2F >= 0) analysisManager->FillH1(idZ2F, zn, zn * zn);   // 高阶矩
   }
 
-  // Calculate lineal energy
-  G4double y = (evtEdep) / ((4. / 3.) * site_radius);  // in keV/um
+  // —— 计算线能 y = ε / l̄，球体平均弦长 l̄ = 4r/3 ——
+  G4double y = (evtEdep) / ((4. / 3.) * siteRadius);
 
-  // Calculate specific energy
-  G4double mass = ((4. / 3.) * CLHEP::pi * site_radius * site_radius
-                   * site_radius * DetDensity);
-  G4double z = (evtEdep / mass);
+  // —— 计算域级比能 z = ε / m_site ——
+  G4double mass = ((4. / 3.) * CLHEP::pi * siteRadius * siteRadius
+                   * siteRadius * detectorDensity);  // 域质量
+  G4double z = (evtEdep / mass);                      // 域级比能
 
-  // Fill histograms
+  // —— 填充微剂量学直方图（仅当域与核交集有命中时）——
   if (nHint > 0) {
-    // Define the weight
+    // 加权 = 选择区命中数 / 交集命中数
     G4double wght = G4double(nHsel) / G4double(nHint);
 
-    // Histogram 0: Single-event energy imparted in keV
+    // 直方图 0: 单事件授与能 (keV)
     analysisManager->FillH1(0, evtEdep / keV, wght);
 
-    // Histogram 1: Weighted single-event energy imparted in keV
+    // 直方图 1: 加权单事件授与能 (keV)
     analysisManager->FillH1(1, evtEdep / keV, (evtEdep * wght / keV));
 
-    // Histogram 2: Squared weighted energy imparted per event in keV^2
+    // 直方图 2: 加权能量平方 (keV^2)
     analysisManager->FillH1(2, evtEdep / keV,
                             ((evtEdep * evtEdep * wght) / (keV * keV)));
 
-    // Histogram 3: Lineal energy in keV/um
+    // 直方图 3: 线能 y (keV/um)
     analysisManager->FillH1(3, y / (keV / um), wght);
 
-    // Histogram 4: Dose-weighted lineal energy in keV/um
+    // 直方图 4: 剂量加权线能 y (keV/um)
     analysisManager->FillH1(4, y / (keV / um), (y * wght / (keV / um)));
 
-    // Histogram 5: Squared weighted lineal energy in (keV/um)^2
+    // 直方图 5: 加权线能平方 ((keV/um)^2)
     analysisManager->FillH1(5, y / (keV / um),
                             (y * y * wght / ((keV / um) * (keV / um))));
 
-    // Histogram 6: Specific energy in keV/g
+    // 直方图 6: 比能 z (Gy)
     analysisManager->FillH1(6, z / gray, wght);
 
-    // Histogram 7: Weighted specific energy in keV/g
+    // 直方图 7: 加权比能 z (Gy)
     analysisManager->FillH1(7, z / gray, (z * wght / gray));
 
-    // Histogram 8: Squared-weighted specific energy in (keV/g)^2
+    // 直方图 8: 加权比能平方 (Gy^2)
     analysisManager->FillH1(8, z / gray, (z * z * wght / (gray * gray)));
 
-    // Histogram 9: Number of hits in the selection region
+    // 直方图 9: 选择区命中数
     analysisManager->FillH1(9, nHsel, 1.);
 
-    // Histogram 10: Number of hits in the site
+    // 直方图 10: 域内命中数
     analysisManager->FillH1(10, nHsite, 1.);
 
-    // Histogram 11: Number of hits both in site and selection region
+    // 直方图 11: 域与选择区交集命中数
     analysisManager->FillH1(11, nHint, 1.);
 
-    // Histogram 14: Number of hits in site vs Energy imparted per event
+    // 直方图 14: 域内命中数 vs 单事件授与能 (2D)
     analysisManager->FillH2(0, evtEdep / keV, nHsite, 1.);
   }
   // (else: miss 事件 nofHits==0 —— 对膜/胞外源属正常, 不再警告; ntuple 用 hitFlag=0 记录)
@@ -344,7 +361,9 @@ void TrackerSD::EndOfEvent(G4HCofThisEvent*)
       if (pp) alphaE = pp->GetKineticEnergy();
     }
   }
-  G4int compId = 4;  // 未知
+
+  // 区室编号映射
+  G4int compId = 4;  // 未知区室
   const auto* pga = dynamic_cast<const PrimaryGeneratorAction*>(
     G4RunManager::GetRunManager()->GetUserPrimaryGeneratorAction());
   if (pga) {
@@ -354,7 +373,11 @@ void TrackerSD::EndOfEvent(G4HCofThisEvent*)
     else if (c == "Membrane") compId = 2;
     else if (c == "Extracellular") compId = 3;
   }
+
+  // 加权（miss 事件取 0）
   G4double wght = (nHint > 0) ? G4double(nHsel) / G4double(nHint) : 0.;
+
+  // —— 填充 ntuple 各列 ——
   analysisManager->FillNtupleIColumn(0, evt ? evt->GetEventID() : 0);
   analysisManager->FillNtupleDColumn(1, alphaE / MeV);
   analysisManager->FillNtupleDColumn(2, evtEdep / keV);
@@ -372,5 +395,7 @@ void TrackerSD::EndOfEvent(G4HCofThisEvent*)
     G4RunManager::GetRunManager()->GetUserEventAction());
   G4double etot = evtAct ? evtAct->GetTotalEdep() : 0.;
   analysisManager->FillNtupleDColumn(12, etot / keV);
+
+  // —— 提交本事件 ntuple 行 ——
   analysisManager->AddNtupleRow();
 }

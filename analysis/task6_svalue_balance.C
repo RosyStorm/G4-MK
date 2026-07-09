@@ -1,16 +1,23 @@
-// task6_svalue_balance.C  ——  任务 6.1 (S值) + 6.2 (能量平衡)
-// 6.1: S(N←N) from data/microtrack_Nuc.root (源在核内), 对比解析 + 文献量级
-// 6.2: 核能量平衡 from data/microtrack_membrane.root: <KinE_in>-<KinE_out> vs <edep_n>
+/// \file task6_svalue_balance.C
+/// \brief 任务 6.1（S 值）+ 6.2（核能量平衡）
+///
+/// 6.1: 由 data/microtrack_Nuc.root（源均匀在核内）计算 S(N←N)，
+///      并与解析估计（LET × 平均弦长）及文献量级交叉校验。
+/// 6.2: 由 data/microtrack_membrane.root（膜面源）做核能量平衡：
+///      <KinE_in> − <KinE_out> 与 <edep_n> 比较，评估 δ 电子逃逸。
 
 #include <TFile.h>
 #include <TTree.h>
 #include <TH1D.h>
 #include <TMath.h>
 #include <cstdio>
+/// 计算并打印任务 6.1 的 S(N←N) 与任务 6.2 的核能量平衡。
+/// 先由核源文件给出 S(N←N) 并与解析/文献对比，再由膜面源文件核对
+/// 初级 α 在核内的能损与实际沉积是否一致（δ 电子逃逸修正）。
 void task6_svalue_balance(){
   const double Rn_um=6.2;                 // 核半径 um (HSG, Sato Table1)
-  double Rn=Rn_um*1e-6;                   // m
-  double m_n=(4./3.)*TMath::Pi()*Rn*Rn*Rn*1000.;  // kg (水 1000 kg/m³)
+  double Rn=Rn_um*1e-6;                   // 核半径换算为 m
+  double m_n=(4./3.)*TMath::Pi()*Rn*Rn*Rn*1000.;  // 核质量 kg (水密度 1000 kg/m³)
   printf("核质量 m_n (R_n=%.1f um) = %.4g kg\n\n", Rn_um, m_n);
 
   // ===== 6.1 S(N←N) =====
@@ -30,8 +37,8 @@ void task6_svalue_balance(){
     //   平均LET ≈ Eα(均)/range; Ac-225 α 均~6.9MeV, range~60um → ~115 keV/um
     double meanPath=0.75*Rn_um;            // 3R/4 um
     double LETapprox=115.;                  // keV/um (6.9MeV α 均LET, ASTAR)
-    double edep_analytic_keV = LETapprox*meanPath;
-    double Sanalytic = 4.*edep_analytic_keV*1.602e-16/m_n;
+    double edep_analytic_keV = LETapprox*meanPath;   // 解析: 单α核内沉积估计 (keV)
+    double Sanalytic = 4.*edep_analytic_keV*1.602e-16/m_n;  // 解析 S(N←N) Gy/decay
     printf("  解析估计(LET×3Rn/4×4α): %.4f Gy/decay  (G4/解析=%.2f)\n",
            Sanalytic, Sdecay/Sanalytic);
     printf("  文献量级(MIRDcell/Goddu, R_n~6um Ac-225): ~0.3-0.5 Gy/decay\n");
@@ -42,11 +49,13 @@ void task6_svalue_balance(){
   printf("\n===== 6.2 核能量平衡 [膜面源, H1(12/13) vs edep_n] =====\n");
   TFile *fM=TFile::Open("data/microtrack_membrane.root");
   if(fM && !fM->IsZombie()){
-    TH1 *hKin=(TH1*)fM->Get("KinE_in"), *hKout=(TH1*)fM->Get("KinE_out");
+    TH1 *hKin=(TH1*)fM->Get("KinE_in");        // 初级α进核动能谱
+    TH1 *hKout=(TH1*)fM->Get("KinE_out");      // 初级α出核动能谱
     TTree *tM=(TTree*)fM->Get("events");
     TH1D hE("hE","",2000,0,5e6); tM->Project("hE","edep_n_keV","hitFlag==1");
-    double Kin=hKin->GetMean(), Kout=hKout->GetMean();   // MeV
-    double edep_MeV=hE.GetMean()/1e3;
+    double Kin=hKin->GetMean();                 // 进核动能均值 (MeV)
+    double Kout=hKout->GetMean();               // 出核动能均值 (MeV)
+    double edep_MeV=hE.GetMean()/1e3;           // 核内沉积均值 (MeV)
     printf("  <KinE_in>  = %.4f MeV  (初级α进核)\n", Kin);
     printf("  <KinE_out> = %.4f MeV  (初级α出核)\n", Kout);
     printf("  <KinE_in>-<KinE_out> = %.4f MeV  (初级在核内的总能损)\n", Kin-Kout);

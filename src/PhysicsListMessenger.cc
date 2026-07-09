@@ -24,7 +24,10 @@
 // ********************************************************************
 //
 /// \file PhysicsListMessenger.cc
-/// \brief Implementation of the PhysicsListMessenger class
+/// \brief PhysicsListMessenger 类的实现：注册物理列表相关的 UI 命令
+///
+/// 该 Messenger 向 UI 暴露 /physics/ 目录下的命令，用于在运行时
+/// 选择/切换物理模型，并将命令转发给 PhysicsList。
 
 #include "PhysicsListMessenger.hh"
 
@@ -39,12 +42,18 @@
 PhysicsListMessenger::PhysicsListMessenger(PhysicsList* phys)
   : G4UImessenger(), fPL(phys)
 {
-  fPhysDir = std::make_unique<G4UIdirectory>("/physics/");
-  fPhysDir->SetGuidance("Commands to set physics models and production cuts");
+  /// 构造函数：注册 /physics/ 目录及其下的 UI 命令。
+  /// 当前注册物理列表选择命令(addPhysics)，用于按名称添加物理模型。
+  /// @param phys 关联的 PhysicsList 对象指针，命令将转发给该对象
 
+  // —— 物理命令目录 ——
+  fPhysDir = std::make_unique<G4UIdirectory>("/physics/");
+  fPhysDir->SetGuidance("用于设置物理模型与产生截断的命令");
+
+  // —— 添加物理列表命令 ——
   fPhysicsListCmd =
     std::make_unique<G4UIcmdWithAString>("/physics/addPhysics", this);
-  fPhysicsListCmd->SetGuidance("Add physics list by name.");
+  fPhysicsListCmd->SetGuidance("按名称添加物理列表。");
   fPhysicsListCmd->SetParameterName("PList", false);
   fPhysicsListCmd->AvailableForStates(G4State_PreInit);
 }
@@ -57,6 +66,11 @@ PhysicsListMessenger::~PhysicsListMessenger() = default;
 
 void PhysicsListMessenger::SetNewValue(G4UIcommand* command, G4String newVal)
 {
+  /// 命令分发：根据 command 指针将 UI 传入的新值转发给 PhysicsList。
+  /// @param command 指向触发的 UI 命令对象
+  /// @param newVal UI 传入的命令参数字符串
+
+  // 物理列表名称
   if (command == fPhysicsListCmd.get()) {
     fPL->AddPhysicsList(newVal);
   }

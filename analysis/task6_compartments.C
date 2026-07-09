@@ -1,6 +1,10 @@
-// task6_compartments.C  ——  任务6.3: 四区室 z̄_{n,D} 与 DSMK S(D) 对比
-// 读 4 个 root(Nuc/Cyt/Mem/Ext), 对每个算单事件矩 + DSMK 存活曲线(显式卷积)
-// 输出: z̄_{n,D} 柱状图 + S(D) 四曲线 → result/compartment/comparison.*
+/// \file task6_compartments.C
+/// \brief 任务6.3：四区室 z̄_{n,D} 与 DSMK S(D) 对比
+///
+/// 读取核/胞质/膜/胞外四个源位置的 ROOT 文件，对每个区室计算单事件矩
+/// 与 DSMK 存活曲线（显式卷积），输出 z̄_{n,D} 柱状图与 S(D) 四曲线。
+///
+/// 输出: z̄_{n,D} 柱状图 + S(D) 四曲线 → result/compartment/comparison.*
 
 #include <TFile.h>
 #include <TTree.h>
@@ -18,13 +22,29 @@
 #include <cstdio>
 using namespace std;
 
+/// 线性插值（等距节点）。越界时钳位到端点值。
+/// \param xv 自变量数组（须等距、单调递增）
+/// \param yv 函数值数组（与 xv 等长）
+/// \param x  待插值的自变量
+/// \return x 处的线性插值结果；x 超出范围时返回最近端点的 yv
 double interp(const vector<double>& xv,const vector<double>& yv,double x){
   int n=xv.size(); if(x<=xv[0])return yv[0]; if(x>=xv[n-1])return yv[n-1];
   int i=(int)((x-xv[0])/(xv[1]-xv[0])); if(i<0)i=0; if(i>=n-1)i=n-2;
   return yv[i]+(yv[i+1]-yv[i])/(xv[i+1]-xv[i])*(x-xv[i]);
 }
 
-// 对一棵 events 树算 DSMK S(D); 同时返回单事件矩与命中数
+/// 对一棵 events 树用 DSMK（显式卷积）计算存活曲线 S(D)，同时返回单事件矩与命中数。
+/// 流程：先填充域/核单事件谱并累加矩，再预计算 <z'_d>(zn) 网格，
+/// 最后对每个剂量 D 做复合 Poisson 抽样得到 S(D)。
+/// \param t     events 树（含 z_d_Gy, z_n_Gy, weight, hitFlag 分支）
+/// \param a0    细胞系线性项系数 α0 (Gy^-1)
+/// \param b0    细胞系二次项系数 β0 (Gy^-2)
+/// \param z0    域饱和参数 z0 (Gy)
+/// \param Dmax  存活曲线剂量上限 (Gy)
+/// \param zdF   [out] 域频率平均比能 z̄_{d,F} (Gy)
+/// \param znD   [out] 核剂量平均比能 z̄_{n,D} (Gy)
+/// \param nh    [out] 命中事件数
+/// \return DSMK 存活曲线 TGraph（横轴 D，纵轴 S）
 TGraph* dsmkSD(TTree* t,double a0,double b0,double z0,double Dmax,
                double& zdF,double& znD,long& nh){
   double zd=0,zn=0,w=0; int hf=0;
@@ -54,13 +74,15 @@ TGraph* dsmkSD(TTree* t,double a0,double b0,double z0,double Dmax,
   return g;
 }
 
+/// 主入口：对四个区室分别调用 dsmkSD 计算 z̄_{n,D} 与 S(D)，
+/// 打印对比表并绘制 S(D) 四曲线与 z̄_{n,D} 柱状图到 result/compartment/。
 void task6_compartments(){
   const char* files[]={"data/microtrack_Nuc.root","data/microtrack_Cyt.root",
                        "data/microtrack_membrane.root","data/microtrack_Ext.root"};
   const char* labels[]={"Nucleus","Cytoplasm","Membrane","Extracellular"};
-  int cols[]={kBlack,kBlue,kRed,kGreen+2};
-  double a0=0.156,b0=0.0607,z0=89,Dmax=12;
-  double znDv[4],zdFv[4],hitR[4]; long nhv[4]; double Ntot[4];
+  int cols[]={kBlack,kBlue,kRed,kGreen+2};           // 四区室曲线颜色
+  double a0=0.156,b0=0.0607,z0=89,Dmax=12;            // DSMK 参数: α0, β0, z0, 剂量上限
+  double znDv[4],zdFv[4],hitR[4]; long nhv[4]; double Ntot[4];  // 各区室: z̄_{n,D}, z̄_{d,F}, 命中率%, 命中数, 总事件
   vector<TGraph*> gs;
   printf("\n===== 6.3 四区室辐射品质对比 =====\n");
   printf("%-13s %8s %10s %10s %10s\n","区室","命中率%","z̄_{d,F}","z̄_{n,D}","D@S=0.1");
@@ -76,24 +98,32 @@ void task6_compartments(){
     f->Close();
   }
 
-  // 画 S(D) 四曲线
+  // ===== 画 S(D) 四曲线 =====
   TString dir="./result/compartment/"; if(gSystem->AccessPathName(dir))gSystem->mkdir(dir,kTRUE);
-  TCanvas *cS=new TCanvas("cS","compartment S(D)",760,560); gPad->SetLogy(); gPad->SetGrid();
+  TCanvas *cS=new TCanvas("cS","compartment S(D)",760,560);
+  gPad->SetLogy();
+  gPad->SetGrid();
   TLegend *lg=new TLegend(0.65,0.75,0.92,0.92);
   for(int i=0;i<4;i++){ if(!gs[i])continue;
-    gs[i]->SetLineColor(cols[i]); gs[i]->SetLineWidth(2);
+    gs[i]->SetLineColor(cols[i]);
+    gs[i]->SetLineWidth(2);
     gs[i]->SetTitle("Ac-225/HSG compartment effect (DSMK);Absorbed dose D [Gy];S(D)");
-    gs[i]->GetXaxis()->SetRangeUser(0,Dmax); gs[i]->GetYaxis()->SetRangeUser(1e-5,1.5);
+    gs[i]->GetXaxis()->SetRangeUser(0,Dmax);
+    gs[i]->GetYaxis()->SetRangeUser(1e-5,1.5);
     gs[i]->Draw(i?"L SAME":"AL");
     lg->AddEntry(gs[i],Form("%s (hit %.0f%%)",labels[i],hitR[i]),"l"); }
-  lg->SetFillStyle(0); lg->Draw();
-  cS->SaveAs(dir+"survival_compartment.png"); cS->SaveAs(dir+"survival_compartment.pdf");
+  lg->SetFillStyle(0);
+  lg->Draw();
+  cS->SaveAs(dir+"survival_compartment.png");
+  cS->SaveAs(dir+"survival_compartment.pdf");
 
-  // z̄_{n,D} 柱状图
+  // ===== z̄_{n,D} 柱状图 =====
   TCanvas *cZ=new TCanvas("cZ","znD",500,560);
   TH1D *hZ=new TH1D("hZ",";source compartment;z_{n,D} [Gy] (per event)",4,0,4);
   for(int i=0;i<4;i++){ hZ->SetBinContent(i+1,znDv[i]); hZ->GetXaxis()->SetBinLabel(i+1,labels[i]); }
-  hZ->SetFillColor(kOrange-3); hZ->Draw("bar"); hZ->SetMinimum(0);
+  hZ->SetFillColor(kOrange-3);
+  hZ->Draw("bar");
+  hZ->SetMinimum(0);
   cZ->SaveAs(dir+"znD_compartment.png");
   printf("\n[输出] %s survival_compartment.png + znD_compartment.png\n",dir.Data());
 }

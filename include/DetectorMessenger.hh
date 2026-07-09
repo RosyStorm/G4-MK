@@ -24,7 +24,7 @@
 // ********************************************************************
 //
 /// \file DetectorMessenger.hh
-/// \brief Definition of the DetectorMessenger class
+/// \brief DetectorMessenger 类的定义：探测器几何的 UI 命令交互
 
 #ifndef DetectorMessenger_h
 #define DetectorMessenger_h 1
@@ -40,24 +40,33 @@ class DetectorConstruction;
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
 
+/// @brief 探测器交互命令类
+///
+/// 定义 /mygeom/ 命令目录下的 UI 命令，使用户可在运行时（宏文件或交互式会话）
+/// 修改探测器几何参数：材料、细胞/细胞核/域半径、次级电子最大射程、以及
+/// 出细胞 kill 加速开关。命令转发给 DetectorConstruction 的 SET 方法。
 class DetectorMessenger : public G4UImessenger
 {
   public:
-    DetectorMessenger(DetectorConstruction*);
-    ~DetectorMessenger() override;
+    DetectorMessenger(DetectorConstruction*);   // 注册 /mygeom/ 命令
+    ~DetectorMessenger() override;              // 析构（命令对象由智能指针释放）
 
+    /// 响应 UI 命令赋值，转发给 DetectorConstruction 对应的 SET 方法。
+    /// @param command 触发的 UI 命令指针
+    /// @param newValue 用户输入的新值字符串
     void SetNewValue(G4UIcommand*, G4String) override;
 
   private:
-    DetectorConstruction* fDetector = nullptr;
-    std::unique_ptr<G4UIdirectory> fDetectorDir;
-    std::unique_ptr<G4UIcmdWithADoubleAndUnit> fMaxRangeCmd;
-    std::unique_ptr<G4UIcmdWithAString> fMatNameCmd;
-    std::unique_ptr<G4UIcmdWithADoubleAndUnit> fCellRadiusCmd;
-    std::unique_ptr<G4UIcmdWithADoubleAndUnit> fNucleusRadiusCmd;
-    std::unique_ptr<G4UIcmdWithADoubleAndUnit> fSiteRadiusCmd;
-    std::unique_ptr<G4UIcmdWithABool> fKillOutsideCellCmd;
-    std::unique_ptr<G4UIcmdWithABool> fKillAtNucleusCmd;
+    // ===== 命令目标与命令对象 =====
+    DetectorConstruction* fDetector = nullptr;                          // 关联的探测器构建对象
+    std::unique_ptr<G4UIdirectory> fDetectorDir;                        // /mygeom/ 命令目录
+    std::unique_ptr<G4UIcmdWithADoubleAndUnit> fMaxRangeCmd;            // 次级电子最大射程
+    std::unique_ptr<G4UIcmdWithAString> fMatNameCmd;                    // 介质材料名称
+    std::unique_ptr<G4UIcmdWithADoubleAndUnit> fCellRadiusCmd;          // 细胞半径 R_cell
+    std::unique_ptr<G4UIcmdWithADoubleAndUnit> fNucleusRadiusCmd;       // 细胞核半径 R_n
+    std::unique_ptr<G4UIcmdWithADoubleAndUnit> fSiteRadiusCmd;          // 域半径 r_d
+    std::unique_ptr<G4UIcmdWithABool> fKillOutsideCellCmd;              // 出细胞向外粒子 kill 开关
+    std::unique_ptr<G4UIcmdWithABool> fKillAtNucleusCmd;                // kill 半径取 R_n 还是 R_cell
 };
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......

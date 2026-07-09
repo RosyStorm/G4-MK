@@ -29,6 +29,11 @@
 #include <cstdio>
 using namespace std;
 
+/// 线性插值（等距节点）。越界时钳位到端点值。
+/// \param xv 自变量数组（须等距、单调递增）
+/// \param yv 函数值数组（与 xv 等长）
+/// \param x  待插值的自变量
+/// \return x 处的线性插值结果；x 超出范围时返回最近端点的 yv
 double interp(const vector<double>& xv, const vector<double>& yv, double x){
   int n=xv.size();
   if(x<=xv[0]) return yv[0]; if(x>=xv[n-1]) return yv[n-1];
@@ -36,6 +41,14 @@ double interp(const vector<double>& xv, const vector<double>& yv, double x){
   return yv[i]+(yv[i+1]-yv[i])/(xv[i+1]-xv[i])*(x-xv[i]);
 }
 
+/// DSMK 模型主分析：显式复合 Poisson 卷积构造多事件分布并计算 S(D)。
+/// 严格按 Sato2012 式(20)(21)(26)(27)，并用复合 Poisson 矩关系验证卷积正确性。
+/// 同时给出 mod-SMK 闭式与经典 MK 作为对比（它们按设计不卷积）。
+/// \param fname  输入 ROOT 文件路径（默认 "data/microtrack.root"）
+/// \param alpha0 细胞系线性项系数 α0 (Gy^-1)，默认 0.156 (HSG, Sato2012 Table1)
+/// \param beta0  细胞系二次项系数 β0 (Gy^-2)，默认 0.0607 (HSG)
+/// \param z0     域饱和参数 z0 (Gy)，默认 66.0
+/// \param Dmax   存活曲线剂量上限 (Gy)，默认 5.0
 void analyze_dsmk(const char* fname = "data/microtrack.root",
                   double alpha0 = 0.156, double beta0 = 0.0607, double z0 = 66.0,
                   double Dmax = 5.0)
@@ -48,7 +61,7 @@ void analyze_dsmk(const char* fname = "data/microtrack.root",
   t->SetBranchAddress("z_d_Gy",&zd); t->SetBranchAddress("z_n_Gy",&zn);
   t->SetBranchAddress("weight",&w);  t->SetBranchAddress("hitFlag",&hf);
 
-  // ============ 1. 单事件谱 f_{d,1}, f_{n,1} (per-event) ============
+  // ===== 1. 单事件谱 f_{d,1}, f_{n,1} (per-event) =====
   TH1D *fd1=new TH1D("fd1",";z_{d} [Gy];f_{d,1}",3000,0,150);
   TH1D *fn1=new TH1D("fn1",";z_{n} [Gy];f_{n,1}",3000,0,5);
   double Sw=0,Swz=0,Swzz=0,Szn=0,Sznzn=0; long nh=0; const long Nall=t->GetEntries();
@@ -68,7 +81,7 @@ void analyze_dsmk(const char* fname = "data/microtrack.root",
     for(int s=0;s<Ns;s++){ int k=rnd.Poisson(kmean); double z=0;
       for(int i=0;i<k;i++) z+=f1->GetRandom(&rnd); outH->Fill(z); } };
 
-  // ============ 2. 显式构造 f_d(zd, zn*) 几个代表 zn, 验证域卷积 ============
+  // ===== 2. 显式构造 f_d(zd, zn*) 几个代表 zn, 验证域卷积 =====
   printf("\n===== 域多事件谱 f_d(zd,zn) 卷积验证 [式20-22] =====\n");
   printf("  %8s %10s %10s | %10s %12s | %8s\n","zn","<zd>","(=zn?)","<zd²>","znD·zn+zn²","匹配?");
   TFile *fout=new TFile("result/DSMK/convolved_distributions.root","RECREATE");
@@ -84,7 +97,7 @@ void analyze_dsmk(const char* fname = "data/microtrack.root",
     hdz->Write();
   }
 
-  // ============ 3. 预计算 <z'_d>(zn), <z'_d²>(zn) 在 zn 网格 (用于 DSMK 式19) ============
+  // ===== 3. 预计算 <z'_d>(zn), <z'_d²>(zn) 在 zn 网格 (用于 DSMK 式19) =====
   // 注: 必须用精确 zds 直接累加 z'_d, 不能用直方图 bin 中心(否则 zd=0 被归到 bin 中心
   //     产生虚假 z'_d, 使 S(0)<1)。zds=0 → z'_d=0 严格成立。
   int NZN=160; double znGridMax=50;
@@ -102,7 +115,7 @@ void analyze_dsmk(const char* fname = "data/microtrack.root",
     zsbar[iz]=s1/Msub; zs2bar[iz]=s2/Msub;
   }
 
-  // ============ 4. 显式构造 f_n(zn, D*) 几个代表 D, 验证核卷积 + 给 DSMK 用 ============
+  // ===== 4. 显式构造 f_n(zn, D*) 几个代表 D, 验证核卷积 + 给 DSMK 用 =====
   printf("\n===== 核多事件谱 f_n(zn,D) 卷积验证 [式26-28] =====\n");
   printf("  %8s %10s %10s | %12s %12s | %8s\n","D","<zn>","(=D?)","<zn²>","znD·D+D²","匹配?");
   for(double Dv : {1.0, 2.0, 5.0, 10.0}){
@@ -116,8 +129,9 @@ void analyze_dsmk(const char* fname = "data/microtrack.root",
     hnD->Write();
   }
 
-  // ============ 5. DSMK S(D): 显式卷积 f_n(zn,D) → S(D)=∫Sn(zn) f_n dzn (式7) ============
-  TGraph *gDSMK=new TGraph(); gDSMK->SetName("S_DSMK");
+  // ===== 5. DSMK S(D): 显式卷积 f_n(zn,D) → S(D)=∫Sn(zn) f_n dzn (式7) =====
+  TGraph *gDSMK=new TGraph();
+  gDSMK->SetName("S_DSMK");
   int Ntrial=40000;
   for(double D=0.0; D<=Dmax+1e-9; D+=0.1){
     double Ssum=0;
@@ -130,7 +144,7 @@ void analyze_dsmk(const char* fname = "data/microtrack.root",
     gDSMK->SetPoint(gDSMK->GetN(), D, Ssum/Ntrial);
   }
 
-  // ============ 6. mod-SMK 闭式 + 经典 MK (对比; 它们按设计不卷积) ============
+  // ===== 6. mod-SMK 闭式 + 经典 MK (对比; 它们按设计不卷积) =====
   double zsD_in=z0*(1-exp(-(zdD/z0)*(zdD/z0))); // 仅示意, mod-SMK 需积分形式
   // mod-SMK 用 Inaniwa 式24 (单事件 z̄*_{d,D}), 此处重新积分得 zsD:
   double sZs=0,sZs2=0,sZw=0; // Σw zs, Σw zs², Σw
@@ -140,8 +154,10 @@ void analyze_dsmk(const char* fname = "data/microtrack.root",
   // 原 sZs2/sZs = ∫(z*)²f / ∫z*f 是 z* 的自身剂量均; 正确公式 ∫(z*)²f / z̄_{d,F} 见 PDF 式(12).
   double zsD = (zdF > 0) ? sZs2 / zdF : 0;  // z̄*_{d,D} (Inaniwa 式12)
   double aS=alpha0+beta0*zsD, bS=beta0*zsD/zdD, aM=alpha0+beta0*zsD, bM=beta0;
-  TGraph *gMSMK=new TGraph(); gMSMK->SetName("S_mSMK");
-  TGraph *gMK  =new TGraph(); gMK->SetName("S_MK");
+  TGraph *gMSMK=new TGraph();
+  gMSMK->SetName("S_mSMK");
+  TGraph *gMK  =new TGraph();
+  gMK->SetName("S_MK");
   for(double D=0; D<=Dmax+1e-9; D+=0.1){
     double corr=1+(D*znD/2.0)*((aS+2*bS*D)*(aS+2*bS*D)-2*bS); if(corr<0)corr=0;
     gMSMK->SetPoint(gMSMK->GetN(),D,exp(-aS*D-bS*D*D)*corr);
@@ -154,25 +170,38 @@ void analyze_dsmk(const char* fname = "data/microtrack.root",
     gDSMK->GetPoint(i,D,yd);gMSMK->GetPoint(i,D,ym);gMK->GetPoint(i,D,yk);
     if(D<1e-6||(int)(D+1e-6)==(int)D) printf("  %6.2f %10.4g %10.4g %10.4g\n",D,yd,ym,yk); }
 
-  // ============ 7. 画图 + 存 ============
+  // ===== 7. 画图 + 存 =====
   TString outDir="./result/DSMK/";
   if(gSystem->AccessPathName(outDir)) gSystem->mkdir(outDir,kTRUE);
-  TCanvas *c=new TCanvas("cDSMK","DSMK",760,560); gPad->SetLogy(); gPad->SetGrid();
-  gDSMK->SetLineColor(kBlack); gDSMK->SetLineWidth(2);
-  gDSMK->GetXaxis()->SetTitle("Absorbed dose D [Gy]"); gDSMK->GetYaxis()->SetTitle("S(D)");
+  TCanvas *c=new TCanvas("cDSMK","DSMK",760,560);
+  gPad->SetLogy();
+  gPad->SetGrid();
+  gDSMK->SetLineColor(kBlack);
+  gDSMK->SetLineWidth(2);
+  gDSMK->GetXaxis()->SetTitle("Absorbed dose D [Gy]");
+  gDSMK->GetYaxis()->SetTitle("S(D)");
   gDSMK->GetYaxis()->SetRangeUser(1e-6,1.5);
   gDSMK->SetTitle(Form("Ac-225/HSG DSMK (explicit convolution); z0=%.0f Gy",z0));
   gDSMK->Draw("AL");
-  gMSMK->SetLineColor(kRed); gMSMK->SetLineWidth(2); gMSMK->Draw("L SAME");
-  gMK->SetLineColor(kBlue); gMK->SetLineWidth(2); gMK->SetLineStyle(2); gMK->Draw("L SAME");
+  gMSMK->SetLineColor(kRed);
+  gMSMK->SetLineWidth(2);
+  gMSMK->Draw("L SAME");
+  gMK->SetLineColor(kBlue);
+  gMK->SetLineWidth(2);
+  gMK->SetLineStyle(2);
+  gMK->Draw("L SAME");
   TLegend *lg=new TLegend(0.60,0.75,0.92,0.92);
   lg->AddEntry(gDSMK,"DSMK (Sato, explicit conv.)","l");
   lg->AddEntry(gMSMK,Form("mod-SMK #alpha=%.2f",aS),"l");
   lg->AddEntry(gMK,Form("MK #alpha=%.2f #beta=%.3f",aM,bM),"l");
-  lg->SetFillStyle(0); lg->Draw();
-  c->SaveAs(outDir+"survival_dsmk.png"); c->SaveAs(outDir+"survival_dsmk.pdf");
+  lg->SetFillStyle(0);
+  lg->Draw();
+  c->SaveAs(outDir+"survival_dsmk.png");
+  c->SaveAs(outDir+"survival_dsmk.pdf");
 
-  gDSMK->Write(); gMSMK->Write(); gMK->Write();
+  gDSMK->Write();
+  gMSMK->Write();
+  gMK->Write();
   fout->WriteObject(new TParameter<double>("z_d_F",zdF),"z_d_F");
   fout->WriteObject(new TParameter<double>("z_d_D",zdD),"z_d_D");
   fout->WriteObject(new TParameter<double>("z_n_F",znF),"z_n_F");

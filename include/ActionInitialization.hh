@@ -24,7 +24,7 @@
 // ********************************************************************
 //
 /// \file ActionInitialization.hh
-/// \brief Definition of the ActionInitialization class
+/// \brief ActionInitialization 类的定义：用户动作初始化
 
 #ifndef ActionInitialization_h
 #define ActionInitialization_h 1
@@ -36,18 +36,23 @@ class PhysicsList;
 
 //.....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo.....
 
+/// @brief 用户动作初始化类
+///
+/// 负责为每个工作线程创建用户动作对象（PrimaryGeneratorAction、RunAction、
+/// EventAction、SteppingAction）。在多线程运行模式下由 RunManager 针对每个
+/// 工作线程调用 Build()，对主线程调用 BuildForMaster()。
 class ActionInitialization : public G4VUserActionInitialization
 {
-public:
-  ActionInitialization() = default;
-  ~ActionInitialization() override = default;
+  public:
+    // ===== 构造与析构 =====
+    ActionInitialization() = default;            // 默认构造
+    ~ActionInitialization() override = default;  // 默认析构
 
-  void BuildForMaster() const override;
-  void Build() const override;
-
+    // ===== Geant4 强制重载接口 =====
+    void BuildForMaster() const override;  // 主线程动作构建（仅注册 RunAction）
+    void Build() const override;           // 工作线程动作构建（注册全部用户动作）
 };
 
 //.....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo.....
 
 #endif
-

@@ -24,7 +24,10 @@
 // ********************************************************************
 //
 /// \file PhysicsList.cc
-/// \brief Implementation of the PhysicsList class
+/// \brief PhysicsList 类的实现：物理过程列表
+///
+/// 基于 Geant4-DNA 模块化物理构造器，注册粒子与电磁/DNA 物理过程。
+/// 可通过 UI 命令在多个 DNA 物理选项(dna_opt1~8)及 Livermore/Penelope/标准电磁之间切换。
 
 #include "PhysicsList.hh"
 
@@ -33,7 +36,7 @@
 
 #include "PhysicsListMessenger.hh"
 
-// Particles
+// 粒子定义
 #include "G4Gamma.hh"
 #include "G4Electron.hh"
 #include "G4Positron.hh"
@@ -46,8 +49,8 @@
 #include "G4MesonConstructor.hh"
 #include "G4ShortLivedConstructor.hh"
 
-// Physics packages (builders contained in the Geant4 source code)
-// Electromagnetic
+// 物理包（构建器包含在 Geant4 源码中）
+// 电磁
 #include "G4EmDNAPhysics.hh"
 #include "G4EmDNAPhysics_option1.hh"
 #include "G4EmDNAPhysics_option2.hh"
@@ -69,8 +72,15 @@
 
 PhysicsList::PhysicsList() : G4VModularPhysicsList()
 {
+  /// 构造函数：创建交互命令对象、设置默认物理包(dna_opt2)。
+
+  // 创建物理列表的交互命令对象
   fMessenger = std::make_unique<PhysicsListMessenger>(this);
+
+  // 设置冗余级别
   SetVerboseLevel(1);
+
+  // 默认使用 DNA 物理 option2
   fPhysicsList = std::make_unique<G4EmDNAPhysics_option2>();
 }
 
@@ -82,28 +92,34 @@ PhysicsList::~PhysicsList() = default;
 
 void PhysicsList::ConstructParticle()
 {
-  // This method is invoked when the Geant4 application starts
-  // (do not mix with run initialization).
+  /// 注册所有需要的粒子定义（Geant4 应用启动时调用，勿与 run 初始化混淆）。
+  /// 依次构造玻色子、轻子、介子、重子、离子及 DNA 专用离子。
 
-  // (Taken from G4DecayPhysics)
+  // —— 玻色子（光子等）——
   G4BosonConstructor pBosonConstructor;
   pBosonConstructor.ConstructParticle();
 
+  // —— 轻子（电子、μ 子等）——
   G4LeptonConstructor pLeptonConstructor;
   pLeptonConstructor.ConstructParticle();
 
+  // —— 介子 ——
   G4MesonConstructor pMesonConstructor;
   pMesonConstructor.ConstructParticle();
 
+  // —— 重子（质子、中子等）——
   G4BaryonConstructor pBaryonConstructor;
   pBaryonConstructor.ConstructParticle();
 
+  // —— 离子 ——
   G4IonConstructor pIonConstructor;
   pIonConstructor.ConstructParticle();
 
+  // —— 短寿命粒子 ——
   G4ShortLivedConstructor pShortLivedConstructor;
   pShortLivedConstructor.ConstructParticle();
 
+  // —— DNA 专用离子管理器：注册氢/氘/氚/氦/α 及带电 α 等 ——
   G4DNAGenericIonsManager* genericIonsManager;
   genericIonsManager = G4DNAGenericIonsManager::Instance();
   genericIonsManager->GetIon("hydrogen");
@@ -120,13 +136,15 @@ void PhysicsList::ConstructParticle()
 
 void PhysicsList::ConstructProcess()
 {
-  // Transportation
+  /// 构造所有物理过程：输运 + 电磁/DNA 过程 + 截断设置。
+
+  // —— 粒子输运过程 ——
   AddTransportation();
 
-  // Physics list
+  // —— 电磁/DNA 物理过程 ——
   fPhysicsList->ConstructProcess();
 
-  // Set cuts for particles
+  // —— 设置粒子产生阈截断(cuts) ——
   SetCuts();
 }
 
@@ -134,97 +152,105 @@ void PhysicsList::ConstructProcess()
 
 void PhysicsList::AddPhysicsList(const G4String& name)
 {
+  /// 按名称切换物理构造器。
+  /// @param name 物理列表名称（如 "dna_opt2"、"liv"、"penelope"、"em_standard_opt4" 等）
+
   if (verboseLevel > -1) {
     G4cout << "PhysicsList::AddPhysicsList: <" << name << ">" << G4endl;
   }
 
+  // 与当前物理列表相同则不切换
   if (name == fName) return;
 
+  // —— DNA 物理 ——
   if (name == "dna") {
     fName = name;
     fPhysicsList = std::make_unique<G4EmDNAPhysics>();
     G4cout << fPhysicsList->GetPhysicsName()
-           << " physics package has been activated." << G4endl;
+           << " 物理包已激活。" << G4endl;
   }
   else if (name == "dna_opt1") {
     fName = name;
     fPhysicsList = std::make_unique<G4EmDNAPhysics_option1>();
     G4cout << fPhysicsList->GetPhysicsName()
-           << " physics package has been activated." << G4endl;
+           << " 物理包已激活。" << G4endl;
   }
 
   else if (name == "dna_opt2") {
     fName = name;
     fPhysicsList = std::make_unique<G4EmDNAPhysics_option2>();
     G4cout << fPhysicsList->GetPhysicsName()
-           << " physics package has been activated." << G4endl;
+           << " 物理包已激活。" << G4endl;
   }
 
   else if (name == "dna_opt3") {
     fName = name;
     fPhysicsList = std::make_unique<G4EmDNAPhysics_option3>();
     G4cout << fPhysicsList->GetPhysicsName()
-           << " physics package has been activated." << G4endl;
+           << " 物理包已激活。" << G4endl;
   }
 
   else if (name == "dna_opt4") {
     fName = name;
     fPhysicsList = std::make_unique<G4EmDNAPhysics_option4>();
     G4cout << fPhysicsList->GetPhysicsName()
-           << " physics package has been activated." << G4endl;
+           << " 物理包已激活。" << G4endl;
   }
 
   else if (name == "dna_opt5") {
     fName = name;
     fPhysicsList = std::make_unique<G4EmDNAPhysics_option5>();
     G4cout << fPhysicsList->GetPhysicsName()
-           << " physics package has been activated." << G4endl;
+           << " 物理包已激活。" << G4endl;
   }
 
   else if (name == "dna_opt6") {
     fName = name;
     fPhysicsList = std::make_unique<G4EmDNAPhysics_option6>();
     G4cout << fPhysicsList->GetPhysicsName()
-           << " physics package has been activated." << G4endl;
+           << " 物理包已激活。" << G4endl;
   }
 
   else if (name == "dna_opt7") {
     fName = name;
     fPhysicsList = std::make_unique<G4EmDNAPhysics_option7>();
     G4cout << fPhysicsList->GetPhysicsName()
-           << " physics package has been activated." << G4endl;
+           << " 物理包已激活。" << G4endl;
   }
 
   else if (name == "dna_opt8") {
     fName = name;
     fPhysicsList = std::make_unique<G4EmDNAPhysics_option8>();
     G4cout << fPhysicsList->GetPhysicsName()
-           << " physics package has been activated." << G4endl;
+           << " 物理包已激活。" << G4endl;
   }
 
+  // —— Livermore 物理 ——
   else if (name == "liv") {
     fName = name;
     fPhysicsList = std::make_unique<G4EmLivermorePhysics>();
     G4cout << fPhysicsList->GetPhysicsName()
-           << " physics package has been activated." << G4endl;
+           << " 物理包已激活。" << G4endl;
   }
 
+  // —— Penelope 物理 ——
   else if (name == "penelope") {
     fName = name;
     fPhysicsList = std::make_unique<G4EmPenelopePhysics>();
     G4cout << fPhysicsList->GetPhysicsName()
-           << " physics package has been activated." << G4endl;
+           << " 物理包已激活。" << G4endl;
   }
 
+  // —— 标准电磁物理 option4 ——
   else if (name == "em_standard_opt4") {
     fName = name;
     fPhysicsList = std::make_unique<G4EmStandardPhysics_option4>();
     G4cout << fPhysicsList->GetPhysicsName()
-           << " physics package has been activated." << G4endl;
+           << " 物理包已激活。" << G4endl;
   }
 
   else {
-    G4cout << "PhysicsList::AddPhysicsList: \"" << name << "\" is not defined!"
+    G4cout << "PhysicsList::AddPhysicsList: \"" << name << "\" 未定义!"
            << G4endl;
   }
 }

@@ -24,7 +24,7 @@
 // ********************************************************************
 //
 /// \file PrimaryGeneratorMessenger.hh
-/// \brief Definition of the PrimaryGeneratorMessenger class
+/// \brief PrimaryGeneratorMessenger 类的定义：粒子源的 UI 命令交互
 
 #ifndef PrimaryGeneratorMessenger_h
 #define PrimaryGeneratorMessenger_h 1
@@ -44,21 +44,28 @@ class G4UIcmdWithAString;
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
 
+/// @brief 粒子源交互命令类
+///
+/// 定义 /beam/ 与 /source/ 两个命令目录：前者控制质子枪源点 Z 坐标，
+/// 后者控制 Ac-225 α 源的类型与区室。命令转发给 PrimaryGeneratorAction。
 class PrimaryGeneratorMessenger : public G4UImessenger
 {
   public:
-    PrimaryGeneratorMessenger(PrimaryGeneratorAction*);
-    ~PrimaryGeneratorMessenger() override;
+    PrimaryGeneratorMessenger(PrimaryGeneratorAction*);  // 注册 /beam/ 与 /source/ 命令
+    ~PrimaryGeneratorMessenger() override;               // 析构（命令对象由智能指针释放）
+    /// 响应 UI 命令赋值，转发给 PrimaryGeneratorAction 的对应方法。
+    /// @param command 触发的 UI 命令指针
+    /// @param newValue 用户输入的新值字符串
     void SetNewValue(G4UIcommand*, G4String) override;
 
   private:
-    PrimaryGeneratorAction* fPrimaryAction = nullptr;
-
-    std::unique_ptr<G4UIdirectory> fGunDir;
-    std::unique_ptr<G4UIdirectory> fSourceDir;
-    std::unique_ptr<G4UIcmdWithADoubleAndUnit> fZ0Cmd;
-    std::unique_ptr<G4UIcmdWithAString> fSourceTypeCmd;
-    std::unique_ptr<G4UIcmdWithAString> fCompartmentCmd;
+    // ===== 命令目标与命令对象 =====
+    PrimaryGeneratorAction* fPrimaryAction = nullptr;                  // 关联的粒子源动作对象
+    std::unique_ptr<G4UIdirectory> fGunDir;                            // /beam/ 命令目录
+    std::unique_ptr<G4UIdirectory> fSourceDir;                         // /source/ 命令目录
+    std::unique_ptr<G4UIcmdWithADoubleAndUnit> fZ0Cmd;                 // /beam/position/Z0 命令
+    std::unique_ptr<G4UIcmdWithAString> fSourceTypeCmd;                // /source/type 命令
+    std::unique_ptr<G4UIcmdWithAString> fCompartmentCmd;               // /source/compartment 命令
 };
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......

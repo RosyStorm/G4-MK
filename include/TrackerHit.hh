@@ -24,7 +24,7 @@
 // ********************************************************************
 //
 /// \file TrackerHit.hh
-/// \brief Definition of the TrackerHit class
+/// \brief TrackerHit 类的定义：单步能量沉积命中
 
 #ifndef TrackerHit_h
 #define TrackerHit_h 1
@@ -36,56 +36,64 @@
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
 
+/// @brief 敏感探测器命中类
+///
+/// 记录细胞核内单个 step 的能量沉积信息：径迹 ID、命中位置、能量沉积、
+/// 以及产生该沉积的粒子定义。支持 Geant4 的自定义分配器以提高命中对象
+/// 的创建/销毁效率（多线程下每个线程独立分配器）。
 class TrackerHit : public G4VHit
 {
   public:
-    TrackerHit();
-    TrackerHit(const TrackerHit&);
-    ~TrackerHit() override;
+    // ===== 构造与析构 =====
+    TrackerHit();                  // 默认构造
+    TrackerHit(const TrackerHit&); // 拷贝构造
+    ~TrackerHit() override;        // 析构
 
-    // operators
-    const TrackerHit& operator=(const TrackerHit& right);
-    G4bool operator==(const TrackerHit& right) const;
+    // ===== 运算符 =====
+    const TrackerHit& operator=(const TrackerHit& right);  // 赋值运算符
+    G4bool operator==(const TrackerHit& right) const;      // 相等判定（按地址）
 
-    inline void* operator new(size_t);
-    inline void operator delete(void*);
+    inline void* operator new(size_t);   // 自定义 new（走 Geant4 分配器）
+    inline void operator delete(void*);  // 自定义 delete（走 Geant4 分配器）
 
-    // Methods from base class
-    void Draw() override;
-    void Print() override;
+    // ===== 基类重载方法 =====
+    void Draw() override;   // 可视化绘制命中（红色圆点）
+    void Print() override;  // 打印命中信息（径迹 ID 与能量沉积）
 
-    // Set methods
-    inline void SetTrackID(const G4int& track) { fTrackID = track; }
-    inline void SetPosition(const G4ThreeVector& pos) { fPos = pos; }
-    inline void SetEdep(const G4double& edep) { fEdep = edep; }
-    inline void SetPartDef(const G4ParticleDefinition* partDef)
+    // ===== 设置接口 (SET) =====
+    inline void SetTrackID(const G4int& track) { fTrackID = track; }  // 设置径迹 ID
+    inline void SetPosition(const G4ThreeVector& pos) { fPos = pos; }  // 设置命中位置
+    inline void SetEdep(const G4double& edep) { fEdep = edep; }       // 设置能量沉积
+    inline void SetPartDef(const G4ParticleDefinition* partDef)       // 设置粒子定义
     {
       fPartDef = partDef;
     }
 
-    // Get methods
-    inline G4int GetTrackID() const { return fTrackID; }
-    inline G4ThreeVector GetPosition() const { return fPos; }
-    inline G4double GetEdep() const { return fEdep; }
-    inline const G4ParticleDefinition* GetPartDef() const { return fPartDef; }
+    // ===== 查询接口 (GET) =====
+    inline G4int GetTrackID() const { return fTrackID; }                        // 取径迹 ID
+    inline G4ThreeVector GetPosition() const { return fPos; }                   // 取命中位置
+    inline G4double GetEdep() const { return fEdep; }                           // 取能量沉积
+    inline const G4ParticleDefinition* GetPartDef() const { return fPartDef; }  // 取粒子定义
 
   private:
-    G4int fTrackID = 0;  // Track ID
-    G4ThreeVector fPos = G4ThreeVector();  // Position of hit
-    G4double fEdep = 0.;  // Energy deposit
-    const G4ParticleDefinition* fPartDef = nullptr;  // Particle definition
+    // ===== 命中数据成员 =====
+    G4int fTrackID = 0;                             // 径迹 ID
+    G4ThreeVector fPos = G4ThreeVector();           // 命中位置
+    G4double fEdep = 0.;                            // 能量沉积（内部单位）
+    const G4ParticleDefinition* fPartDef = nullptr;  // 粒子定义
 };
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
 
-typedef G4THitsCollection<TrackerHit> TrackerHitColl;
+typedef G4THitsCollection<TrackerHit> TrackerHitColl;  // TrackerHit 命中集合类型别名
 
-extern G4ThreadLocal G4Allocator<TrackerHit>* TrackerHitAllocator;
+extern G4ThreadLocal G4Allocator<TrackerHit>* TrackerHitAllocator;  // 线程局部分配器指针
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
 
 inline void* TrackerHit::operator new(size_t)
 {
+  // 懒初始化线程局部分配器，并从其中分配单个命中对象
   if (!TrackerHitAllocator) TrackerHitAllocator = new G4Allocator<TrackerHit>;
   return (void*)TrackerHitAllocator->MallocSingle();
 }
@@ -94,6 +102,7 @@ inline void* TrackerHit::operator new(size_t)
 
 inline void TrackerHit::operator delete(void* hit)
 {
+  // 将命中对象归还给线程局部分配器
   TrackerHitAllocator->FreeSingle((TrackerHit*)hit);
 }
 

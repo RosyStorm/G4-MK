@@ -24,7 +24,10 @@
 // ********************************************************************
 //
 /// \file TrackerHit.cc
-/// \brief Implementation of the TrackerHit class
+/// \brief TrackerHit 类的实现：敏感探测器命中类
+///
+/// 记录细胞核内的能量沉积命中（Hit），包含径迹 ID、能量沉积等字段。
+/// 提供 Draw()（可视化）与 Print()（打印）方法，供可视化与回放调用。
 
 #include "TrackerHit.hh"
 
@@ -35,6 +38,7 @@
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
 
+// 线程局部的命中对象分配器（Geant4 内存池，提升命中创建/销毁效率）
 G4ThreadLocal G4Allocator<TrackerHit>* TrackerHitAllocator = nullptr;
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
@@ -49,23 +53,35 @@ TrackerHit::~TrackerHit() = default;
 
 TrackerHit::TrackerHit(const TrackerHit& right) : G4VHit()
 {
+  /// 拷贝构造函数：从另一个命中对象复制字段。
+  /// @param right 被拷贝的命中对象
+
   fTrackID = right.fTrackID;
   fEdep = right.fEdep;
 }
 
-
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
+
 const TrackerHit& TrackerHit::operator=(const TrackerHit& right)
 {
+  /// 赋值运算符：从另一个命中对象复制字段。
+  /// @param right 被赋值的命中对象
+  /// @return 本对象的引用
+
   fTrackID = right.fTrackID;
   fEdep = right.fEdep;
 
   return *this;
 }
+
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
 
 G4bool TrackerHit::operator==(const TrackerHit& right) const
 {
+  /// 相等判定：基于对象地址比较（仅当为同一实例时才视为相等）。
+  /// @param right 待比较的命中对象
+  /// @return 两对象为同一实例时返回 true，否则 false
+
   return this == &right;
 }
 
@@ -73,15 +89,24 @@ G4bool TrackerHit::operator==(const TrackerHit& right) const
 
 void TrackerHit::Draw()
 {
-  G4VVisManager* pVVisManager = G4VVisManager::GetConcreteInstance();
-  if (pVVisManager) {
+  /// 可视化绘制本命中：以半透明红色实心圆点标记命中位置。
+  /// 由 Geant4 可视化管理器在事件回放时调用。
+
+  // —— 获取可视化管理器实例 ——
+  G4VVisManager* visManager = G4VVisManager::GetConcreteInstance();
+  if (visManager) {
+    // —— 构造命中位置的圆形标记 ——
     G4Circle circle(GetPosition());
-    circle.SetScreenSize(5.);
-    circle.SetFillStyle(G4Circle::filled);
+    circle.SetScreenSize(5.);                 // 屏幕尺寸（像素）
+    circle.SetFillStyle(G4Circle::filled);    // 填充样式：实心
+
+    // —— 颜色与可视化属性（半透明红色：RGBA = 1,0,0,0.5）——
     G4Colour colour(1.0, 0.0, 0.0, 0.5);
-    G4VisAttributes attribs(colour);
-    circle.SetVisAttributes(attribs);
-    pVVisManager->Draw(circle);
+    G4VisAttributes visAttributes(colour);
+    circle.SetVisAttributes(visAttributes);
+
+    // —— 绘制标记 ——
+    visManager->Draw(circle);
   }
 }
 
@@ -89,8 +114,11 @@ void TrackerHit::Draw()
 
 void TrackerHit::Print()
 {
-  G4cout << "  TrackID: " << fTrackID
-         << "  Edep: " << G4BestUnit(fEdep, "Energy") << G4endl;
+  /// 打印本命中的信息（径迹 ID 与能量沉积）。
+  /// 能量沉积带最佳单位输出（G4BestUnit）。
+
+  G4cout << "  径迹ID: " << fTrackID
+         << "  能量沉积: " << G4BestUnit(fEdep, "Energy") << G4endl;
 }
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......

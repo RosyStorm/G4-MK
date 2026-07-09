@@ -24,7 +24,7 @@
 // ********************************************************************
 //
 /// \file PhysicsList.hh
-/// \brief Definition of the PhysicsList class
+/// \brief PhysicsList 类的定义：物理过程列表
 
 #ifndef PhysicsList_h
 #define PhysicsList_h 1
@@ -39,22 +39,33 @@ class PhysicsListMessenger;
 
 //.....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo.....
 
+/// @brief 物理过程列表类
+///
+/// 基于 G4VModularPhysicsList，默认采用 G4EmDNAPhysics_option2（Geant4-DNA
+/// option2）作为电磁物理构造器，并构造全套粒子（含 DNA 离子：hydrogen、
+/// deuteron、triton、helium、alpha、alpha+、alpha++、carbon）。运行时可通过
+/// PhysicsListMessenger 的 /physics/addPhysics 命令切换物理构造器。
 class PhysicsList : public G4VModularPhysicsList
 {
   public:
-    PhysicsList();
-    ~PhysicsList() override;
+    // ===== 构造与析构 =====
+    PhysicsList();   // 创建 Messenger、设置默认 DNA 物理(option2)
+    ~PhysicsList() override;  // 析构（Messenger 与物理构造器由智能指针释放）
 
-    void ConstructParticle() override;
-    void ConstructProcess() override;
+    // ===== Geant4 强制重载接口 =====
+    void ConstructParticle() override;  // 构造全部粒子定义
+    void ConstructProcess() override;   // 构造粒子输运与电磁物理过程
 
+    // ===== 物理构造器切换 =====
+    /// 按名称切换物理构造器（dna_opt1..8、liv、penelope、em_standard_opt4 等）。
+    /// @param name 物理构造器名称字符串
     void AddPhysicsList(const G4String& name);
 
   private:
-  
-    G4String fName = "";
-    std::unique_ptr<G4VPhysicsConstructor> fPhysicsList;
-    std::unique_ptr<PhysicsListMessenger> fMessenger;
+    // ===== 物理构造器与交互命令 =====
+    G4String fName = "";                                       // 当前激活的物理构造器名称
+    std::unique_ptr<G4VPhysicsConstructor> fPhysicsList;       // 当前电磁物理构造器
+    std::unique_ptr<PhysicsListMessenger> fMessenger;          // UI 命令交互对象
 };
 
 //.....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo.....

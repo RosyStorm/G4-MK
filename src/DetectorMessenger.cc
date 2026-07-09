@@ -24,7 +24,11 @@
 // ********************************************************************
 //
 /// \file DetectorMessenger.cc
-/// \brief Implementation of the DetectorMessenger class
+/// \brief DetectorMessenger 类的实现：注册探测器几何相关的 UI 命令
+///
+/// 该 Messenger 向 UI 暴露 /mygeom/ 目录下的命令，用于在运行时修改
+/// 探测器几何参数（次级电子射程、各半径、材料）以及粒子杀死策略，
+/// 并将命令转发给 DetectorConstruction。
 
 #include "DetectorMessenger.hh"
 
@@ -40,63 +44,75 @@
 DetectorMessenger::DetectorMessenger(DetectorConstruction* myDet)
   : fDetector(myDet)
 {
-  fDetectorDir = std::make_unique<G4UIdirectory>("/mygeom/");
-  fDetectorDir->SetGuidance("Detector control.");
+  /// 构造函数：注册 /mygeom/ 目录及其下的全部 UI 命令。
+  /// 包括次级电子最大射程、细胞半径、细胞核半径、域半径、材料名称，
+  /// 以及细胞外杀死开关与核边界杀死开关。
+  /// @param myDet 关联的 DetectorConstruction 对象指针，命令将转发给该对象
 
+  // —— 探测器命令目录 ——
+  fDetectorDir = std::make_unique<G4UIdirectory>("/mygeom/");
+  fDetectorDir->SetGuidance("探测器控制命令。");
+
+  // —— 设置次级电子最大射程命令 ——
   fMaxRangeCmd =
     std::make_unique<G4UIcmdWithADoubleAndUnit>("/mygeom/maxRange", this);
-  fMaxRangeCmd->SetGuidance("Maximum range of secondary electrons.");
-  fMaxRangeCmd->SetGuidance("This is considered to set the z-size of ");
-  fMaxRangeCmd->SetGuidance("the world volume.");
+  fMaxRangeCmd->SetGuidance("次级电子的最大射程。");
+  fMaxRangeCmd->SetGuidance("该参数用于设定");
+  fMaxRangeCmd->SetGuidance("世界体积的尺寸。");
   fMaxRangeCmd->SetParameterName("range", false);
   fMaxRangeCmd->SetDefaultUnit("mm");
   fMaxRangeCmd->SetUnitCandidates("um mm cm");
   fMaxRangeCmd->AvailableForStates(G4State_PreInit, G4State_Idle);
 
+  // —— 设置细胞半径命令 ——
   fCellRadiusCmd =
     std::make_unique<G4UIcmdWithADoubleAndUnit>("/mygeom/cellRadius", this);
-  fCellRadiusCmd->SetGuidance("Radius of the cell (membrane boundary)");
+  fCellRadiusCmd->SetGuidance("细胞（细胞膜边界）的半径");
   fCellRadiusCmd->SetParameterName("radius", false);
   fCellRadiusCmd->SetDefaultUnit("um");
   fCellRadiusCmd->SetUnitCandidates("nm um mm cm");
   fCellRadiusCmd->AvailableForStates(G4State_PreInit, G4State_Idle);
 
+  // —— 设置介质材料名称命令 ——
   fMatNameCmd = std::make_unique<G4UIcmdWithAString>("/mygeom/material", this);
-  fMatNameCmd->SetGuidance("Name of the material.");
+  fMatNameCmd->SetGuidance("介质材料的名称。");
   fMatNameCmd->SetParameterName("name", false);
   fMatNameCmd->AvailableForStates(G4State_PreInit);
 
+  // —— 设置细胞核半径命令 ——
   fNucleusRadiusCmd =
     std::make_unique<G4UIcmdWithADoubleAndUnit>("/mygeom/nucleusRadius", this);
-  fNucleusRadiusCmd->SetGuidance("Radius of the cell nucleus (domain scoring region)");
+  fNucleusRadiusCmd->SetGuidance("细胞核（域打分区域）的半径");
   fNucleusRadiusCmd->SetParameterName("radius", false);
   fNucleusRadiusCmd->SetDefaultUnit("um");
   fNucleusRadiusCmd->SetUnitCandidates("nm um mm cm");
   fNucleusRadiusCmd->AvailableForStates(G4State_PreInit, G4State_Idle);
 
+  // —— 设置域(site)半径命令 ——
   fSiteRadiusCmd =
     std::make_unique<G4UIcmdWithADoubleAndUnit>("/mygeom/siteRadius", this);
-  fSiteRadiusCmd->SetGuidance("Radius of the Site");
+  fSiteRadiusCmd->SetGuidance("域(site)的半径。");
   fSiteRadiusCmd->SetParameterName("radius", false);
   fSiteRadiusCmd->SetDefaultUnit("um");
   fSiteRadiusCmd->SetUnitCandidates("nm um mm cm");
   fSiteRadiusCmd->AvailableForStates(G4State_PreInit, G4State_Idle);
 
+  // —— 细胞外粒子杀死开关命令 ——
   fKillOutsideCellCmd =
     std::make_unique<G4UIcmdWithABool>("/mygeom/killOutsideCell", this);
   fKillOutsideCellCmd->SetGuidance(
-    "Speed-up switch: kill particles once outside the cell (R_cell) and moving"
-    " outward. Default true for production; set false for alpha range"
-    " validation (task 3.1).");
+    "加速开关：粒子一旦离开细胞(R_cell)且向外飞行即予以杀死。"
+    " 生产运行默认 true；进行 alpha 射程验证(任务 3.1)时设为 false。");
   fKillOutsideCellCmd->SetParameterName("flag", false);
   fKillOutsideCellCmd->SetDefaultValue(true);
   fKillOutsideCellCmd->AvailableForStates(G4State_PreInit, G4State_Idle);
 
+  // —— 核边界杀死半径开关命令 ——
   fKillAtNucleusCmd =
     std::make_unique<G4UIcmdWithABool>("/mygeom/killAtNucleus", this);
   fKillAtNucleusCmd->SetGuidance(
-    "Kill radius: true=R_n (default, faster, nucleus-scoring unbiased),"
-    " false=R_cell.");
+    "杀死半径：true=按细胞核半径 R_n（默认，更快，不影响核内打分），"
+    " false=按细胞半径 R_cell。");
   fKillAtNucleusCmd->SetParameterName("flag2", false);
   fKillAtNucleusCmd->SetDefaultValue(true);
   fKillAtNucleusCmd->AvailableForStates(G4State_PreInit, G4State_Idle);
@@ -110,24 +126,35 @@ DetectorMessenger::~DetectorMessenger() = default;
 
 void DetectorMessenger::SetNewValue(G4UIcommand* command, G4String newValue)
 {
+  /// 命令分发：根据 command 指针将 UI 传入的新值转发给 DetectorConstruction。
+  /// @param command 指向触发的 UI 命令对象
+  /// @param newValue UI 传入的命令参数字符串
+
+  // 次级电子最大射程
   if (command == fMaxRangeCmd.get()) {
     fDetector->SetMaxRange(fMaxRangeCmd->GetNewDoubleValue(newValue));
   }
+  // 介质材料名称
   else if (command == fMatNameCmd.get()) {
     fDetector->SetMaterial(newValue);
   }
+  // 细胞半径
   else if (command == fCellRadiusCmd.get()) {
     fDetector->SetCellRadius(fCellRadiusCmd->GetNewDoubleValue(newValue));
   }
+  // 细胞核半径
   else if (command == fNucleusRadiusCmd.get()) {
     fDetector->SetNucleusRadius(fNucleusRadiusCmd->GetNewDoubleValue(newValue));
   }
+  // 域(site)半径
   else if (command == fSiteRadiusCmd.get()) {
     fDetector->SetSiteRadius(fSiteRadiusCmd->GetNewDoubleValue(newValue));
   }
+  // 细胞外粒子杀死开关
   else if (command == fKillOutsideCellCmd.get()) {
     fDetector->SetKillOutsideCell(fKillOutsideCellCmd->GetNewBoolValue(newValue));
   }
+  // 核边界杀死半径开关
   else if (command == fKillAtNucleusCmd.get()) {
     fDetector->SetKillAtNucleus(fKillAtNucleusCmd->GetNewBoolValue(newValue));
   }

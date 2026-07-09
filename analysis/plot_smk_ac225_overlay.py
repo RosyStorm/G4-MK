@@ -47,9 +47,19 @@ import ROOT
 # 中文字体设置 (与 fit_lq_xray.py 一致, 防止图像中文乱码)
 # ============================================================
 def setup_matplotlib_font():
-    """探测系统中可用的中文字体 (优先 Noto CJK)."""
+    """
+    探测系统中可用的中文字体 (优先 Noto CJK),
+    并写入 matplotlib 全局配置, 防止图像中中文乱码.
+
+    Returns:
+        str 或 None: 成功匹配到的字体名; 若系统未安装任何中文字体, 返回 None
+    """
     from matplotlib import font_manager
+
+    # 关闭 Unicode 负号替换, 避免坐标轴负号显示为方块
     matplotlib.rcParams["axes.unicode_minus"] = False
+
+    # 候选中文字体列表 (按优先级从高到低排列)
     candidates = [
         "Noto Sans CJK JP", "Noto Sans CJK SC", "Noto Sans CJK TC", "Noto Sans CJK KR",
         "Noto Serif CJK JP", "Noto Serif CJK SC",
@@ -57,6 +67,8 @@ def setup_matplotlib_font():
         "WenQuanYi Zen Hei", "WenQuanYi Micro Hei",
         "SimHei", "Microsoft YaHei", "PingFang SC", "Hiragino Sans GB",
     ]
+
+    # —— 逐个尝试候选字体, 命中即设置并返回 ——
     for name in candidates:
         try:
             path = font_manager.findfont(name, fallback_to_default=False)
@@ -66,6 +78,8 @@ def setup_matplotlib_font():
                 return name
         except Exception:
             continue
+
+    # —— 系统未安装任何中文字体, 给出警告 ——
     print("[matplotlib] 未找到中文字体, 使用默认 (图像中中文可能为方块)")
     return None
 
@@ -77,14 +91,24 @@ def read_lq_params(csv_path):
     """
     从 fit_lq_xray.py 输出的拟合曲线 CSV 读取 α₀, β₀.
     该 CSV 含常量列 alpha, beta (每行重复同一拟合值), 取首行即可.
+
+    Args:
+        csv_path: fit_lq_xray.py 输出的 CSV 路径 (Path 或字符串)
+
+    Returns:
+        tuple (alpha0, beta0, mode):
+            alpha0 — 参考线性项系数 α₀ (Gy⁻¹)
+            beta0 — 参考二次项系数 β₀ (Gy⁻²)
+            mode — CSV 记录的剂量模式 (nominal / actual), 缺失时为 "?"
     """
     df = pd.read_csv(csv_path)
+    # —— 必需列校验, 缺列直接报错退出 ——
     for col in ("alpha", "beta"):
         if col not in df.columns:
             sys.exit(f"[ERROR] {csv_path} 缺少必需列 '{col}' "
                      f"(应含 dose_Gy,S_LQ,alpha,beta,mode; 请先运行 fit_lq_xray.py)")
-    alpha0 = float(df["alpha"].iloc[0])
-    beta0 = float(df["beta"].iloc[0])
+    alpha0 = float(df["alpha"].iloc[0])         # α₀ (Gy⁻¹)
+    beta0 = float(df["beta"].iloc[0])           # β₀ (Gy⁻²)
     mode = str(df["mode"].iloc[0]) if "mode" in df.columns else "?"
     return alpha0, beta0, mode
 
@@ -97,43 +121,57 @@ def compute_microdosimetry(root_path, z0):
     用 RDataFrame 读 events ntuple, 仅取命中事件 hitFlag==1,
     计算 SMK 所需的单事件微剂量学量。与 analyze_mk.C 严格一一对应。
 
-    返回 dict: z_d_F, z_d_D, zs_d_D, z_n_F, z_n_D, n_hits, n_entries
+    Args:
+        root_path: microtrack.root 文件路径 (含 events ntuple)
+        z0: 域饱和参数 z₀ (Gy), 用于计算饱和比能 z*
+
+    Returns:
+        dict, 含键:
+            z_d_F  — 域频率平均比能 z̄_{d,F}  (Gy, 式10)
+            z_d_D  — 域剂量平均比能 z̄_{d,D}  (Gy, 式11)
+            zs_d_D — 域饱和剂量平均比能 z̄*_{d,D} (Gy, 式12)
+            z_n_F  — 核频率平均比能 z̄_{n,F} (Gy)
+            z_n_D  — 核剂量平均比能 z̄_{n,D} (Gy)
+            n_hits — 命中事件数 (hitFlag==1)
+            n_entries — ntuple 总条目数
     """
     rdf = ROOT.RDataFrame("events", str(root_path))
-    n_entries = rdf.Count().GetValue()
+    n_entries = rdf.Count().GetValue()          # ntuple 总条目数
     if n_entries == 0:
         sys.exit(f"[ERROR] {root_path} 内 events ntuple 为空")
 
+    # —— 仅保留命中事件 (细胞核被击中) ——
     hits = rdf.Filter("hitFlag==1")
-    n_hits = hits.Count().GetValue()
+    n_hits = hits.Count().GetValue()            # 命中事件数
     if n_hits == 0:
         sys.exit(f"[ERROR] {root_path} 无命中事件 (hitFlag==1), 无法计算微剂量学量")
 
+    # —— 取出域级/核级比能与权重 ——
     cols = hits.AsNumpy(["z_d_Gy", "z_n_Gy", "weight"])
-    z_d = np.asarray(cols["z_d_Gy"], dtype=float)
-    z_n = np.asarray(cols["z_n_Gy"], dtype=float)
-    w = np.asarray(cols["weight"], dtype=float)
+    z_d = np.asarray(cols["z_d_Gy"], dtype=float)   # 域比能 z_d (Gy)
+    z_n = np.asarray(cols["z_n_Gy"], dtype=float)   # 核比能 z_n (Gy)
+    w = np.asarray(cols["weight"], dtype=float)     # 重要性权重 (校正位点随机放置偏置)
 
-    # 域级: 带重要性权 w (校正位点随机放置偏置)
-    Sw = w.sum()
-    Swz = (w * z_d).sum()
-    Swzz = (w * z_d * z_d).sum()
+    # —— 域级累加: 带重要性权 w ——
+    Sw = w.sum()                                # Σw
+    Swz = (w * z_d).sum()                       # Σ(w·z_d)
+    Swzz = (w * z_d * z_d).sum()                # Σ(w·z_d²)
     if Sw <= 0 or Swz <= 0:
         sys.exit("[ERROR] 域级求和异常 (Σw 或 Σ(w·z_d) ≤ 0)")
 
-    z_d_F = Swz / Sw                                  # z̄_{d,F}  式10
-    z_d_D = Swzz / Swz                                # z̄_{d,D}  式11
-    zs = z0 * (1.0 - np.exp(-(z_d / z0) ** 2))        # z*_{d}    式1 (无 sqrt)
-    Swzszs = (w * zs * zs).sum()
-    zs_d_D = Swzszs / Swz                             # z̄*_{d,D} 式12 (分母为 z̄_{d,F}, P0 修复 #5)
+    z_d_F = Swz / Sw                                  # z̄_{d,F}  式10 (域频率均)
+    z_d_D = Swzz / Swz                                # z̄_{d,D}  式11 (域剂量均)
+    zs = z0 * (1.0 - np.exp(-(z_d / z0) ** 2))        # z*_{d}    式1 饱和比能 (无 sqrt)
+    Swzszs = (w * zs * zs).sum()                      # Σ(w·z*²)
+    zs_d_D = Swzszs / Swz                             # z̄*_{d,D} 式12 (域饱和剂量均)
 
-    # 核级: 无权 (w=1)
-    Szn = z_n.sum()
-    Sznzn = (z_n * z_n).sum()
+    # —— 核级累加: 无权 (w=1) ——
+    Szn = z_n.sum()                            # Σz_n
+    Sznzn = (z_n * z_n).sum()                  # Σz_n²
     if Szn <= 0:
         sys.exit("[ERROR] 核级求和异常 (Σz_n ≤ 0)")
-    z_n_F = Szn / n_hits                              # z̄_{n,F}
-    z_n_D = Sznzn / Szn                               # z̄_{n,D}
+    z_n_F = Szn / n_hits                       # z̄_{n,F} (核频率均)
+    z_n_D = Sznzn / Szn                        # z̄_{n,D} (核剂量均)
 
     return {
         "z_d_F": z_d_F, "z_d_D": z_d_D, "zs_d_D": zs_d_D,
@@ -146,9 +184,22 @@ def compute_microdosimetry(root_path, z0):
 # SMK 系数 (Inaniwa 式15-16)
 # ============================================================
 def smk_coefficients(alpha0, beta0, z_d_D, zs_d_D):
-    """α_S = α₀ + β₀·z̄*_{d,D}  (式15);  β_S = β₀·z̄*_{d,D}/z̄_{d,D}  (式16)."""
-    alpha_s = alpha0 + beta0 * zs_d_D
-    beta_s = beta0 * zs_d_D / z_d_D
+    """
+    计算修正 SMK 模型的两个系数 α_S, β_S.
+
+    Args:
+        alpha0: 参考线性项系数 α₀ (Gy⁻¹, 来自 X 射线 LQ 拟合)
+        beta0: 参考二次项系数 β₀ (Gy⁻², 来自 X 射线 LQ 拟合)
+        z_d_D: 域剂量平均比能 z̄_{d,D} (Gy)
+        zs_d_D: 域饱和剂量平均比能 z̄*_{d,D} (Gy)
+
+    Returns:
+        tuple (alpha_s, beta_s):
+            alpha_s — SMK 线性项系数 α_S (Gy⁻¹, 式15)
+            beta_s — SMK 二次项系数 β_S (Gy⁻², 式16)
+    """
+    alpha_s = alpha0 + beta0 * zs_d_D          # α_S = α₀ + β₀·z̄*_{d,D}  (式15)
+    beta_s = beta0 * zs_d_D / z_d_D            # β_S = β₀·z̄*_{d,D}/z̄_{d,D} (式16)
     return alpha_s, beta_s
 
 
@@ -157,14 +208,27 @@ def smk_coefficients(alpha0, beta0, z_d_D, zs_d_D):
 # ============================================================
 def smk_survival(D, alpha_s, beta_s, z_n_D):
     """
+    计算修正 SMK 存活分数 S(D) (Inaniwa 式24).
+
     S(D) = exp(-α_S D - β_S D²) · [1 + (D·z̄_{n,D}/2)·((α_S+2β_S D)² - 2β_S)]
     方括号为 z_n 随机性修正; 低 LET 时 z̄_{n,D}→小, 退化为 LQ。
     bracket 裁剪到 ≥0, 防止数值上出现负存活 (与 analyze_mk.C 一致)。
+
+    Args:
+        D: 剂量 (Gy), 标量或数组
+        alpha_s: SMK 线性项系数 α_S (Gy⁻¹)
+        beta_s: SMK 二次项系数 β_S (Gy⁻²)
+        z_n_D: 核剂量平均比能 z̄_{n,D} (Gy)
+
+    Returns:
+        存活分数 S (无量纲, 与 D 同形), 已保证非负
     """
     D = np.asarray(D, dtype=float)
+    # —— LQ 主项 exp(-α_S D - β_S D²) ——
     lq = np.exp(-alpha_s * D - beta_s * D ** 2)
+    # —— z_n 随机性修正方括号项 ——
     bracket = 1.0 + (D * z_n_D / 2.0) * ((alpha_s + 2.0 * beta_s * D) ** 2 - 2.0 * beta_s)
-    bracket = np.clip(bracket, 0.0, None)             # 防御
+    bracket = np.clip(bracket, 0.0, None)             # 防御: 裁剪到非负, 避免负存活
     return lq * bracket
 
 
@@ -172,6 +236,10 @@ def smk_survival(D, alpha_s, beta_s, z_n_D):
 # 主流程
 # ============================================================
 def main():
+    """
+    脚本入口: 解析参数 -> 读 α₀/β₀ -> 算微剂量学量 -> 求 SMK 系数 ->
+    生成存活曲线 -> 叠加 Ac-225 实验点 -> 输出 PNG/CSV/TXT.
+    """
     ap = argparse.ArgumentParser(
         description="修正 SMK 存活曲线 (α₀/β₀ 取自 X 射线 LQ 拟合) × Ac-225 实验数据叠加图"
     )
@@ -190,10 +258,11 @@ def main():
                     help="输出目录 (默认 result/validation, 与 analyze_mk.C 一致)")
     args = ap.parse_args()
 
-    root_path = Path(args.root)
-    lq_path = Path(args.lq_csv)
-    ac225_path = Path(args.ac225)
-    out_dir = Path(args.outdir)
+    # —— 路径准备与存在性校验 ——
+    root_path = Path(args.root)                 # microtrack ntuple 路径
+    lq_path = Path(args.lq_csv)                 # X 射线 LQ 拟合结果 CSV
+    ac225_path = Path(args.ac225)               # Ac-225 实验数据 CSV
+    out_dir = Path(args.outdir)                 # 输出目录
     out_dir.mkdir(parents=True, exist_ok=True)
 
     for p in (root_path, lq_path, ac225_path):
@@ -202,14 +271,14 @@ def main():
 
     setup_matplotlib_font()
 
-    # ---------- 1. 读 α₀, β₀ (来自 X 射线 LQ 拟合) ----------
+    # —— 1. 读 α₀, β₀ (来自 X 射线 LQ 拟合) ——
     alpha0, beta0, lq_mode = read_lq_params(lq_path)
     print("=" * 64)
     print("[1] 参考辐射敏感性 (来自 fit_lq_xray.py)")
     print(f"    来源: {lq_path}  (模式: {lq_mode})")
     print(f"    α₀ = {alpha0:.6f} Gy⁻¹   β₀ = {beta0:.6f} Gy⁻²")
 
-    # ---------- 2. 算微剂量学量 ----------
+    # —— 2. 算微剂量学量 ——
     print("=" * 64)
     print("[2] 微剂量学量 (来自 microtrack.root, 仅命中事件)")
     md = compute_microdosimetry(root_path, args.z0)
@@ -219,46 +288,49 @@ def main():
     print(f"    z̄*_{{d,D}}= {md['zs_d_D']:.5f} Gy   (饱和)")
     print(f"    z̄_{{n,F}} = {md['z_n_F']:.5g} Gy   z̄_{{n,D}} = {md['z_n_D']:.5f} Gy")
 
-    # ---------- 3. SMK 系数 (式15-16) ----------
+    # —— 3. SMK 系数 (式15-16) ——
     alpha_s, beta_s = smk_coefficients(alpha0, beta0, md["z_d_D"], md["zs_d_D"])
     print("=" * 64)
     print("[3] SMK 系数 (Inaniwa 式15-16)")
     print(f"    α_S = α₀ + β₀·z̄*_{{d,D}}            = {alpha_s:.5f} Gy⁻¹")
     print(f"    β_S = β₀·z̄*_{{d,D}}/z̄_{{d,D}}        = {beta_s:.5f} Gy⁻²")
 
-    # ---------- 4. Ac-225 实验数据 ----------
+    # —— 4. Ac-225 实验数据 ——
     df_ac = pd.read_csv(ac225_path)
+    # 必需列校验
     for col in ("dose_Gy", "survival_fraction"):
         if col not in df_ac.columns:
             sys.exit(f"[ERROR] {ac225_path} 缺少必需列 '{col}'")
-    D_obs = df_ac["dose_Gy"].to_numpy(float)
-    S_obs = df_ac["survival_fraction"].to_numpy(float)
+    D_obs = df_ac["dose_Gy"].to_numpy(float)               # 实验剂量 (Gy)
+    S_obs = df_ac["survival_fraction"].to_numpy(float)     # 实验存活分数
 
-    # ---------- 5. SMK 存活曲线 (式24) ----------
+    # —— 5. SMK 存活曲线 (式24) ——
+    # 剂量上限: 显式指定优先, 否则取实验最大剂量的 1.05 倍
     Dmax = args.dmax if args.dmax is not None else float(D_obs.max()) * 1.05
     if Dmax <= 0:
         sys.exit(f"[ERROR] --dmax 必须 > 0 (当前 {Dmax})")
-    D_grid = np.linspace(0.0, Dmax, 600)
+    D_grid = np.linspace(0.0, Dmax, 600)                   # 稠密剂量网格
     S_grid = smk_survival(D_grid, alpha_s, beta_s, md["z_n_D"])
-    S_grid = np.clip(S_grid, 1e-12, None)             # 对数轴下限保护
+    S_grid = np.clip(S_grid, 1e-12, None)                  # 对数轴下限保护
 
-    # 在实验剂量点处取模型值, 算 log-RMSE (D>0); 取 log 前下限保护, 防 log(0)→-inf
-    pos = D_obs > 0
+    # 在实验剂量点处取模型值, 算 log-RMSE (仅 D>0 的点); 取 log 前下限保护, 防 log(0)→-inf
+    pos = D_obs > 0                                        # 有效剂量点掩码
     S_at = smk_survival(D_obs[pos], alpha_s, beta_s, md["z_n_D"])
-    lg_obs = np.log(np.clip(S_obs[pos], 1e-30, None))
-    lg_at = np.log(np.clip(S_at, 1e-30, None))
+    lg_obs = np.log(np.clip(S_obs[pos], 1e-30, None))     # ln(实验存活), 下限保护
+    lg_at = np.log(np.clip(S_at, 1e-30, None))            # ln(模型存活), 下限保护
     rmse_log = float(np.sqrt(np.mean((lg_obs - lg_at) ** 2)))
     print("=" * 64)
-    print("[4] 模型 vs Ac-225 实验 (log-space)")
+    print("[4] 模型 vs Ac-225 实验 (对数空间)")
     print(f"    D 范围: 0–{D_obs.max():.3f} Gy,  数据点 {pos.sum()} 个")
     print(f"    RMSE(ln S) = {rmse_log:.5f}")
 
-    # ---------- 6. 画图 ----------
+    # —— 6. 画图 ——
     fig, ax = plt.subplots(figsize=(8.0, 5.6), dpi=150)
     ax.scatter(D_obs[pos], S_obs[pos], s=66, c="#1f77b4", edgecolor="black",
                label="Ac-225 实验 (PC-3 PIP)", zorder=5)
     ax.plot(D_grid, S_grid, color="#d62728", lw=2.2,
             label=f"修正 SMK 式(24)")
+    # 参考线: 10% 与 1% 存活水平
     ax.axhline(0.1, color="gray", ls=":", lw=1)
     ax.axhline(0.01, color="gray", ls=":", lw=1)
 
@@ -271,6 +343,7 @@ def main():
     ax.grid(True, which="both", ls="--", alpha=0.4)
     ax.legend(loc="upper right", framealpha=0.92)
 
+    # 图内参数说明框 (LaTeX 数学标签保留原样)
     txt = (
         f"$\\alpha_0$ = {alpha0:.4f} Gy$^{{-1}}$   $\\beta_0$ = {beta0:.4f} Gy$^{{-2}}$  ({lq_mode})\n"
         f"$z_0$ = {args.z0} Gy\n"
@@ -290,7 +363,7 @@ def main():
     print("=" * 64)
     print(f"[输出] 图像 → {png}")
 
-    # ---------- 7. 曲线 CSV + 摘要 TXT ----------
+    # —— 7. 曲线 CSV + 摘要 TXT ——
     curve_csv = out_dir / f"smk_ac225_{lq_mode}.csv"
     pd.DataFrame({
         "dose_Gy": D_grid,

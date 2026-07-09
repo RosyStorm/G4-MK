@@ -24,7 +24,7 @@
 // ********************************************************************
 //
 /// \file PrimaryGeneratorAction.hh
-/// \brief Definition of the PrimaryGeneratorAction class
+/// \brief PrimaryGeneratorAction 类的定义：初级粒子产生动作
 
 #ifndef PrimaryGeneratorAction_h
 #define PrimaryGeneratorAction_h 1
@@ -43,46 +43,64 @@ class G4ParticleDefinition;
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
 
+/// @brief 初级粒子产生动作类
+///
+/// 支持两种源类型（/source/type）：
+///   - proton：原质子枪（基线对比），位置/方向由成员决定，能量由 /gun/energy 给
+///   - ac225 ：Ac-225 α 源，从指定区室（/source/compartment）均匀随机点各向同性
+///             发射一个 α，能量按 Ac-225 衰变链抽样（一个 α = 一个事件，契合 MK 单事件定义）
+///   - alpha ：单能 α 验证模式（任务3.1），能量由 /gun/energy 给
+///
+/// 区室取值：Nucleus(核内) | Cytoplasm(质内) | Membrane(膜面,默认) | Extracellular(胞外)
 class PrimaryGeneratorAction : public G4VUserPrimaryGeneratorAction
 {
   public:
-    PrimaryGeneratorAction();
-    virtual ~PrimaryGeneratorAction() override;
+    // ===== 构造与析构 =====
+    PrimaryGeneratorAction();                  // 创建枪与 Messenger，设定默认粒子
+    virtual ~PrimaryGeneratorAction() override;  // 析构（枪与 Messenger 由智能指针释放）
+
+    // ===== Geant4 强制重载接口 =====
+    /// 为每个事件产生初级粒子。
+    /// @param anEvent 当前事件指针
     void GeneratePrimaries(G4Event*) override;
 
+    // ===== 查询接口 (GET) =====
+    /// 取粒子枪指针（供其它动作查询粒子状态）。
+    /// @return 粒子枪原始指针
     G4ParticleGun* GetParticleGun() { return fParticleGun.get(); }
 
-    // Setters for the particle source
-    void SetPositionZ(G4double z) { fZ0 = z; }
-    void SetSourceType(const G4String& t) { fSourceType = t; }
-    G4String GetSourceType() const { return fSourceType; }
-    void SetCompartment(const G4String& c) { fCompartment = c; }
-    G4String GetCompartment() const { return fCompartment; }
+    // ===== 设置接口 (SET)：由 PrimaryGeneratorMessenger 的 UI 命令调用 =====
+    void SetPositionZ(G4double z) { fZ0 = z; }                 // 设置源点 Z 坐标（proton 模式）
+    void SetSourceType(const G4String& t) { fSourceType = t; } // 设置源类型(proton|ac225|alpha)
+    G4String GetSourceType() const { return fSourceType; }     // 取源类型
+    void SetCompartment(const G4String& c) { fCompartment = c; }  // 设置源区室(ac225 模式)
+    G4String GetCompartment() const { return fCompartment; }      // 取源区室
 
   private:
-    // Ac-225 α 源辅助方法
-    G4double SampleAc225AlphaEnergy() const;            // 抽样 Ac-225 衰变链 α 动能
-    G4ThreeVector SampleIsotropicDirection() const;     // 各向同性单位方向
-    G4ThreeVector SampleSourcePosition() const;         // 按 fCompartment 抽样源点位置
-    G4ThreeVector SampleInSphere(G4double R) const;                  // 球内均匀
-    G4ThreeVector SampleInShell(G4double Rin, G4double Rout) const;  // 球壳内均匀
-    G4ThreeVector SampleOnSphere(G4double R) const;                  // 球面均匀
-    G4ThreeVector SampleInBoxMinusSphere(G4double Rc, G4double wh) const; // 盒内排除球(胞外)
+    // ===== Ac-225 α 源辅助方法 =====
+    G4double SampleAc225AlphaEnergy() const;                       // 抽样 Ac-225 衰变链 α 动能
+    G4ThreeVector SampleIsotropicDirection() const;                // 各向同性单位方向
+    G4ThreeVector SampleSourcePosition() const;                    // 按 fCompartment 抽样源点位置
+    G4ThreeVector SampleInSphere(G4double R) const;                // 球内均匀抽样
+    G4ThreeVector SampleInShell(G4double Rin, G4double Rout) const;  // 球壳内均匀抽样
+    G4ThreeVector SampleOnSphere(G4double R) const;                // 球面均匀抽样
+    G4ThreeVector SampleInBoxMinusSphere(G4double Rc, G4double wh) const;  // 盒内排除球(胞外)抽样
 
-    std::unique_ptr<G4ParticleGun> fParticleGun;
-    std::unique_ptr<PrimaryGeneratorMessenger> fGunMessenger;
+    // ===== 枪与交互命令 =====
+    std::unique_ptr<G4ParticleGun> fParticleGun;              // 粒子枪
+    std::unique_ptr<PrimaryGeneratorMessenger> fGunMessenger;  // UI 命令交互对象
 
-    // Source properties
-    G4ParticleDefinition* fParticle = nullptr;   // 质子(基线对比用)
+    // ===== 源属性参数 =====
+    G4ParticleDefinition* fParticle = nullptr;   // 质子（基线对比用）
     G4ParticleDefinition* fAlpha = nullptr;      // α 粒子
-    G4String fSourceType = "ac225";              // proton | ac225
+    G4String fSourceType = "ac225";              // proton | ac225 | alpha
     G4String fCompartment = "Membrane";          // Nucleus | Cytoplasm | Membrane | Extracellular
-    G4double fX0 = 0.;
-    G4double fY0 = 0.;
-    G4double fZ0 = -10.2 * um;
-    G4double fMomentumX = 0.;
-    G4double fMomentumY = 0.;
-    G4double fMomentumZ = 1.;
+    G4double fX0 = 0.;                           // proton 模式源点 X 坐标
+    G4double fY0 = 0.;                           // proton 模式源点 Y 坐标
+    G4double fZ0 = -10.2 * um;                   // proton 模式源点 Z 坐标
+    G4double fMomentumX = 0.;                    // proton 模式动量方向 X 分量
+    G4double fMomentumY = 0.;                    // proton 模式动量方向 Y 分量
+    G4double fMomentumZ = 1.;                    // proton 模式动量方向 Z 分量
 };
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......

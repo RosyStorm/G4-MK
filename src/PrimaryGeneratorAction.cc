@@ -24,10 +24,11 @@
 // ********************************************************************
 //
 /// \file PrimaryGeneratorAction.cc
-/// \brief Implementation of the PrimaryGeneratorAction class
+/// \brief PrimaryGeneratorAction 类的实现：初级粒子生成器
 ///
-/// 支持两种源类型(/source/type)：
+/// 支持三种源类型(/source/type)：
 ///   - proton : 原质子枪(基线对比)，位置/方向由成员决定，能量由 /gun/energy 给
+///   - alpha  : 单能 α 验证模式(任务3.1)，位置按区室、方向各向同性
 ///   - ac225  : Ac-225 α 源，从指定区室(/source/compartment)均匀随机点各向同性
 ///              发射一个 α，能量按 Ac-225 衰变链抽样(一个 α = 一个事件，契合 MK 单事件定义)
 ///   区室: Nucleus(核内) | Cytoplasm(质内) | Membrane(膜面,默认) | Extracellular(胞外)
@@ -53,14 +54,16 @@
 PrimaryGeneratorAction::PrimaryGeneratorAction()
   : G4VUserPrimaryGeneratorAction()
 {
-  // Create a messenger for this class
+  /// 构造函数：创建交互命令对象与粒子枪，设置默认粒子(质子/α)。
+
+  // 创建本类的交互命令对象
   fGunMessenger = std::make_unique<PrimaryGeneratorMessenger>(this);
 
-  // Create a particle gun
+  // 创建粒子枪（每事件发射 1 个粒子）
   G4int nOfParticles = 1;
   fParticleGun = std::make_unique<G4ParticleGun>(nOfParticles);
 
-  // Set default particles.
+  // —— 设置默认粒子定义 ——
   fParticle = G4ParticleTable::GetParticleTable()->FindParticle("proton");
   fAlpha = G4ParticleTable::GetParticleTable()->FindParticle("alpha");
 }
@@ -73,8 +76,12 @@ PrimaryGeneratorAction::~PrimaryGeneratorAction() = default;
 
 void PrimaryGeneratorAction::GeneratePrimaries(G4Event* anEvent)
 {
+  /// 事件开始时生成初级粒子。
+  /// 根据 fSourceType 选择源模式：ac225 / alpha / proton。
+  /// @param anEvent 当前事件指针
+
   if (fSourceType == "ac225") {
-    // ----- Ac-225 α 源：区室抽样位置 + 各向同性 + 抽样能量 -----
+    // —— Ac-225 α 源：区室抽样位置 + 各向同性 + 抽样能量 ——
     G4double ekin = SampleAc225AlphaEnergy();
     G4ThreeVector pos = SampleSourcePosition();
     G4ThreeVector dir = SampleIsotropicDirection();
@@ -95,7 +102,7 @@ void PrimaryGeneratorAction::GeneratePrimaries(G4Event* anEvent)
     }
   }
   else if (fSourceType == "alpha") {
-    // ----- 单能 α 验证模式(任务3.1)：能量由 /gun/energy 给，位置按区室，各向同性 -----
+    // —— 单能 α 验证模式(任务3.1)：能量由 /gun/energy 给，位置按区室，各向同性 ——
     G4ThreeVector pos = SampleSourcePosition();
     G4ThreeVector dir = SampleIsotropicDirection();
 
@@ -111,13 +118,13 @@ void PrimaryGeneratorAction::GeneratePrimaries(G4Event* anEvent)
     }
   }
   else {
-    // ----- proton 模式：保持原有基线行为 -----
+    // —— proton 模式：保持原有基线行为 ——
     fParticleGun->SetParticlePosition(G4ThreeVector(fX0, fY0, fZ0));
     fParticleGun->SetParticleMomentumDirection(
       G4ThreeVector(fMomentumX, fMomentumY, fMomentumZ));
   }
 
-  // this function is called at the begining of event
+  // 生成初级顶点（在事件开始时调用）
   fParticleGun->GeneratePrimaryVertex(anEvent);
 }
 
@@ -125,34 +132,43 @@ void PrimaryGeneratorAction::GeneratePrimaries(G4Event* anEvent)
 
 G4double PrimaryGeneratorAction::SampleAc225AlphaEnergy() const
 {
-  // Ac-225 衰变链 4 个 α（能量据 NNDC，实现时已核对）：
-  //   1) 225Ac -> 221Fr : 5.83 MeV  (100%)
-  //   2) 221Fr -> 217At : 6.36 MeV  (100%)
-  //   3) 217At -> 213Bi : 7.07 MeV  (100%)
-  //   4) 经 213Bi: 97.84% -> 213Po -> 209Pb (8.40 MeV)
-  //                 2.16% -> 209Tl 直接 alpha (5.87 MeV)
-  // 一次衰变产生 4 个 α(各槽位各 1 个)，故 4 槽等概率抽样即可重建谱形。
-  const G4double eAc = 5.83 * MeV;
-  const G4double eFr = 6.36 * MeV;
-  const G4double eAt = 7.07 * MeV;
-  const G4double ePo = 8.40 * MeV;
-  const G4double eBi = 5.87 * MeV;
+  /// 按 Ac-225 衰变链抽样一个 α 的动能。
+  /// @return 抽样得到的 α 动能(MeV)
+  ///
+  /// Ac-225 衰变链 4 个 α（能量据 NNDC，实现时已核对）：
+  ///   1) 225Ac -> 221Fr : 5.83 MeV  (100%)
+  ///   2) 221Fr -> 217At : 6.36 MeV  (100%)
+  ///   3) 217At -> 213Bi : 7.07 MeV  (100%)
+  ///   4) 经 213Bi: 97.84% -> 213Po -> 209Pb (8.40 MeV)
+  ///                 2.16% -> 209Tl 直接 alpha (5.87 MeV)
+  /// 一次衰变产生 4 个 α(各槽位各 1 个)，故 4 槽等概率抽样即可重建谱形。
 
+  // 4 个 α 槽位的特征能量
+  const G4double eAc = 5.83 * MeV;  // 225Ac -> 221Fr
+  const G4double eFr = 6.36 * MeV;  // 221Fr -> 217At
+  const G4double eAt = 7.07 * MeV;  // 217At -> 213Bi
+  const G4double ePo = 8.40 * MeV;  // 213Po -> 209Pb
+  const G4double eBi = 5.87 * MeV;  // 209Tl 直接 α
+
+  // 4 槽等概率抽样（0..3）
   G4int slot = static_cast<G4int>(G4UniformRand() * 4.0);  // 0..3 等概率
   if (slot == 0) return eAc;
   if (slot == 1) return eFr;
   if (slot == 2) return eAt;
-  return (G4UniformRand() < 0.9784) ? ePo : eBi;  // slot==3, 含 Bi-213 分支
+  return (G4UniformRand() < 0.9784) ? ePo : eBi;  // slot==3, 含 Bi-213 分支(分支比 97.84%)
 }
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
 
 G4ThreeVector PrimaryGeneratorAction::SampleIsotropicDirection() const
 {
-  // 各向同性单位向量：cosθ 在 [-1,1] 均匀，φ 在 [0,2π) 均匀
-  G4double cosTheta = 2. * G4UniformRand() - 1.;
+  /// 抽样一个各向同性单位方向向量。
+  /// @return 各向同性单位方向（cosθ 在 [-1,1] 均匀，φ 在 [0,2π) 均匀）
+
+  // 球面均匀采样：极角余弦与方位角均均匀分布
+  G4double cosTheta = 2. * G4UniformRand() - 1.;               // cosθ ∈ [-1,1]
   G4double sinTheta = std::sqrt((1. - cosTheta) * (1. + cosTheta));
-  G4double phi = CLHEP::twopi * G4UniformRand();
+  G4double phi = CLHEP::twopi * G4UniformRand();               // 方位角 φ ∈ [0,2π)
   return G4ThreeVector(sinTheta * std::cos(phi), sinTheta * std::sin(phi),
                        cosTheta);
 }
@@ -162,13 +178,17 @@ G4ThreeVector PrimaryGeneratorAction::SampleIsotropicDirection() const
 G4ThreeVector
 PrimaryGeneratorAction::SampleSourcePosition() const
 {
-  // 按 fCompartment 在对应区室内均匀抽样源点位置
+  /// 按 fCompartment 在对应区室内均匀抽样源点位置。
+  /// @return 源点位置（核内/质内/膜面/胞外，取决于当前区室设置）
+
+  // 从探测器构造获取几何尺寸
   const auto* det = static_cast<const DetectorConstruction*>(
     G4RunManager::GetRunManager()->GetUserDetectorConstruction());
-  G4double Rn = det ? det->GetNucleusRadius() : 8. * um;
-  G4double Rc = det ? det->GetCellRadius() : 10. * um;
-  G4double Rworld = Rc + (det ? det->GetMaxRange() : 49. * um);
+  G4double Rn = det ? det->GetNucleusRadius() : 8. * um;     // 核半径(默认 8 um)
+  G4double Rc = det ? det->GetCellRadius() : 10. * um;       // 细胞半径(默认 10 um)
+  G4double Rworld = Rc + (det ? det->GetMaxRange() : 49. * um);  // 世界半边长
 
+  // 按区室选择对应的抽样方式
   if (fCompartment == "Nucleus")       return SampleInSphere(Rn);
   if (fCompartment == "Cytoplasm")     return SampleInShell(Rn, Rc);
   if (fCompartment == "Extracellular") return SampleInBoxMinusSphere(Rc, Rworld);
@@ -180,6 +200,10 @@ PrimaryGeneratorAction::SampleSourcePosition() const
 
 G4ThreeVector PrimaryGeneratorAction::SampleInSphere(G4double R) const
 {
+  /// 在半径 R 的球内均匀抽样一点。
+  /// @param R 球半径
+  /// @return 球内均匀分布的随机点
+
   // 球内均匀：r ~ R * u^(1/3)，方向各向同性
   G4double r = R * std::pow(G4UniformRand(), 1. / 3.);
   return r * SampleIsotropicDirection();
@@ -190,7 +214,12 @@ G4ThreeVector PrimaryGeneratorAction::SampleInSphere(G4double R) const
 G4ThreeVector
 PrimaryGeneratorAction::SampleInShell(G4double Rin, G4double Rout) const
 {
-  // 球壳 [Rin,Rout] 内均匀：r^3 在 [Rin^3, Rout^3] 均匀
+  /// 在球壳 [Rin, Rout] 内均匀抽样一点。
+  /// @param Rin 球壳内半径
+  /// @param Rout 球壳外半径
+  /// @return 球壳内均匀分布的随机点
+
+  // 球壳内均匀：r^3 在 [Rin^3, Rout^3] 均匀
   G4double rin3 = Rin * Rin * Rin;
   G4double rout3 = Rout * Rout * Rout;
   G4double r = std::pow(rin3 + G4UniformRand() * (rout3 - rin3), 1. / 3.);
@@ -201,6 +230,10 @@ PrimaryGeneratorAction::SampleInShell(G4double Rin, G4double Rout) const
 
 G4ThreeVector PrimaryGeneratorAction::SampleOnSphere(G4double R) const
 {
+  /// 在半径 R 的球面上均匀抽样一点。
+  /// @param R 球半径
+  /// @return 球面上均匀分布的随机点
+
   // 球面均匀 = R * 各向同性单位方向
   return R * SampleIsotropicDirection();
 }
@@ -210,7 +243,13 @@ G4ThreeVector PrimaryGeneratorAction::SampleOnSphere(G4double R) const
 G4ThreeVector
 PrimaryGeneratorAction::SampleInBoxMinusSphere(G4double Rc, G4double wh) const
 {
-  // 半边长 wh 的盒内、排除半径 Rc 的球(胞外区)：拒绝采样
+  /// 在半边长 wh 的盒内、排除半径 Rc 的球（胞外区）中均匀抽样一点。
+  /// 采用拒绝采样法。
+  /// @param Rc 排除球的半径（细胞半径）
+  /// @param wh 盒的半边长
+  /// @return 盒内且球外的随机点
+
+  // 拒绝采样：在盒内均匀取点，若落在排除球内则重试
   for (G4int i = 0; i < 1000; ++i) {
     G4double x = (2. * G4UniformRand() - 1.) * wh;
     G4double y = (2. * G4UniformRand() - 1.) * wh;

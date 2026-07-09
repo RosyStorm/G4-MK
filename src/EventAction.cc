@@ -24,7 +24,10 @@
 // ********************************************************************
 //
 /// \file EventAction.cc
-/// \brief Implementation of the EventAction class
+/// \brief EventAction 类的实现：事件级用户动作
+///
+/// 在事件开始时重置事件级累积量，事件进行中累积能量沉积与 α 投影射程，
+/// 事件末将结果（如 α 射程直方图）填入分析管理器。
 
 #include "EventAction.hh"
 
@@ -37,30 +40,50 @@
 
 void EventAction::BeginOfEventAction(const G4Event* /*anEvent*/)
 {
-  fMaxRange = 0.;
-  fHaveVertex = false;
-  fPrimaryVertex = G4ThreeVector();
-  fTotalEdep = 0.;  // 任务6.2: 每事件重置全局能量沉积
-  fNucleusEdepBoundary = 0.;  // P0 修复 #1: 边界步核内 edep 累加器重置
+  /// 事件开始时重置所有事件级累积量。
+  /// @param anEvent 当前事件（未使用）
+
+  // —— 重置事件级累积量 ——
+  fMaxRange = 0.;                       // α 最大位移（投影射程）清零
+  fHaveVertex = false;                  // 尚未登记发射点
+  fPrimaryVertex = G4ThreeVector();     // 初级 α 发射点清零
+  fTotalEdep = 0.;                      // 任务6.2: 全局能量沉积清零
+  fNucleusEdepBoundary = 0.;            // P0 修复 #1: 边界步核内 edep 累加器清零
 }
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
 
 void EventAction::UpdateMaxRange(const G4ThreeVector& pos)
 {
+  /// 更新 α 相对发射点的最大位移（投影射程）。
+  /// @param pos 当前步后位置
+  /// @return 无（结果写入成员 fMaxRange）
+
+  // 尚未登记发射点：直接返回，无需更新
   if (!fHaveVertex) return;
-  G4double r = (pos - fPrimaryVertex).mag();
-  if (r > fMaxRange) fMaxRange = r;
+
+  // —— 计算当前位置相对发射点的距离 ——
+  G4double distance = (pos - fPrimaryVertex).mag();
+
+  // —— 保留最大值（即投影射程）——
+  if (distance > fMaxRange) fMaxRange = distance;
 }
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
 
 void EventAction::EndOfEventAction(const G4Event* /*anEvent*/)
 {
+  /// 事件末动作：若有有效发射点，将 α 投影射程填入直方图。
+  /// @param anEvent 当前事件（未使用）
+
+  // —— 检查是否有有效发射点与射程 ——
   if (fHaveVertex && fMaxRange > 0.) {
-    auto* am = G4AnalysisManager::Instance();
-    G4int id = am->GetH1Id("alphaRange");
-    if (id >= 0) am->FillH1(id, fMaxRange / um);
+    // —— 填充 α 射程直方图 ——
+    auto* analysisManager = G4AnalysisManager::Instance();
+    G4int histogramId = analysisManager->GetH1Id("alphaRange");
+    if (histogramId >= 0) {
+      analysisManager->FillH1(histogramId, fMaxRange / um);
+    }
   }
 }
 

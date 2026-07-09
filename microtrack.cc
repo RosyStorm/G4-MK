@@ -24,8 +24,10 @@
 // ********************************************************************
 //
 /// \file microtrack.cc
-/// \brief Main program of the dna/microtrack example
+/// \brief microtrack 示例的主程序
 
+// 以下为 Geant4-DNA 协作组的示例来源与论文引用声明（须原样保留）：
+// 本示例由 Geant4-DNA 协作组提供，公开发表基于 Geant4-DNA 的结果时须引用以下论文。
 // This example is provided by the Geant4-DNA collaboration
 // Any report or published results obtained using the Geant4-DNA software
 // shall cite the following Geant4-DNA collaboration publications:
@@ -55,29 +57,36 @@
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
 
+/// 程序入口：初始化运行管理器、注册用户初始化类，并按交互/批处理模式启动模拟。
+/// @param argc 命令行参数个数（1=交互模式，2=批处理，3=指定线程数）
+/// @param argv 命令行参数数组（argv[1]=宏文件名，argv[2]=线程数）
+/// @return 程序退出码
 int main(int argc, char** argv)
 {
-  // detect interactive mode (if no arguments) and define UI session
+  // —— 检测交互模式（无参数时）并创建 UI 会话 ——
   G4UIExecutive* ui = nullptr;
-  if (argc == 1) ui = new G4UIExecutive(argc, argv);
+  if (argc == 1) {
+    ui = new G4UIExecutive(argc, argv);
+  }
 
-  // choose the Random engine
+  // —— 选择随机数引擎 ——
   G4Random::setTheEngine(new CLHEP::RanecuEngine);
 
-  // Use SteppingVerbose with Unit
+  // —— 设置步进输出的精度并启用最佳单位显示 ——
   G4int precision = 4;
   G4SteppingVerbose::UseBestUnit(precision);
 
-  // Creating run manager
+  // —— 创建运行管理器（默认类型，支持多线程）——
   auto runManager =
     G4RunManagerFactory::CreateRunManager(G4RunManagerType::Default);
 
+  // 若提供第二个参数，则设置工作线程数
   if (argc == 3) {
     G4int nThreads = G4UIcommand::ConvertToInt(argv[2]);
     runManager->SetNumberOfThreads(nThreads);
   }
 
-  // set mandatory initialization classes
+  // —— 注册强制用户初始化类（探测器、物理、动作）——
   DetectorConstruction* det = new DetectorConstruction;
   runManager->SetUserInitialization(det);
 
@@ -86,14 +95,14 @@ int main(int argc, char** argv)
 
   runManager->SetUserInitialization(new ActionInitialization(/*det, phys*/));
 
-  // initialize visualization
+  // —— 初始化可视化（仅在交互模式启用）——
   G4VisManager* visManager = nullptr;
 
-  // get the pointer to the User Interface manager
+  // 获取 UI 管理器指针
   G4UImanager* UImanager = G4UImanager::GetUIpointer();
 
   if (ui) {
-    // interactive mode
+    // 交互模式：启动可视化并进入交互会话
     visManager = new G4VisExecutive;
     visManager->Initialize();
     UImanager->ApplyCommand("/control/execute init_vis.mac");
@@ -101,13 +110,13 @@ int main(int argc, char** argv)
     delete ui;
   }
   else {
-    // batch mode
+    // 批处理模式：执行给定的宏文件
     G4String command = "/control/execute ";
     G4String fileName = argv[1];
     UImanager->ApplyCommand(command + fileName);
   }
 
-  // job termination
+  // —— 作业结束：释放可视化与运行管理器 ——
   delete visManager;
   delete runManager;
 }
