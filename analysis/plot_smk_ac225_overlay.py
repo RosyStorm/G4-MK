@@ -41,6 +41,7 @@ import matplotlib.pyplot as plt
 from msmk import ModifiedSMK   # ← SMK 模型类 (analysis/msmk.py)
 from mk import MK
 from smk import SMK
+from dsmk import DSMK
 
 # ============================================================
 # 中文字体设置 (防止图像中文乱码)
@@ -98,7 +99,11 @@ def read_lq_params(csv_path):
     mode = str(df["mode"].iloc[0]) if "mode" in df.columns else "?"
     return alpha0, beta0, mode
 
-
+def get_z0(beta0, rn, rd):
+    '''
+    计算得到MK修正的z0
+    '''
+    return rn**2/(rd*np.sqrt(beta0*(rd**2 + rn**2)))
 # ============================================================
 # 主流程
 # ============================================================
@@ -117,7 +122,7 @@ def main():
                          "默认 actual 模式, 可换 lq_fit_xray_nominal.csv")
     ap.add_argument("--ac225", default="data/validation/Ac225_survival.csv",
                     help="Ac-225 实验存活数据 CSV (默认 data/validation/Ac225_survival.csv)")
-    ap.add_argument("--z0", type=float, default=66.0,
+    ap.add_argument("--z0", type=float, default=40.0,
                     help="饱和参数 z₀ [Gy] (analyze_mk.C 默认 66.0, Inaniwa HSG; PC-3 无公开值)")
     ap.add_argument("--dmax", type=float, default=None,
                     help="存活曲线剂量上限 [Gy]; 默认取数据最大剂量的 1.05 倍")
@@ -142,16 +147,22 @@ def main():
 
     # —— 1. 读 α₀, β₀ (来自 X 射线 LQ 拟合) ——
     alpha0, beta0, lq_mode = read_lq_params(lq_path)
+    rn = 6.4
+    rd = 0.274
+    z0 = get_z0(beta0, rn, rd)
     print("=" * 64)
     print("[1] 参考辐射敏感性 (来自 fit_lq_xray.py)")
     print(f"    来源: {lq_path}  (模式: {lq_mode})")
     print(f"    α₀ = {alpha0:.6f} Gy⁻¹   β₀ = {beta0:.6f} Gy⁻²")
+    print(f"    计算得到MK修正的 z₀ = {z0:.3f} Gy (由 β₀, r_n={rn} μm, r_d={rd} μm 算出)")
+    print(f"    输入饱和参数 z₀ = {args.z0:.3f} Gy")
 
     # —— 2+3. 用 ModifiedSMK 建模: 从 root 算微剂量学量 + SMK 系数 ——
     try:
         msmk = ModifiedSMK.from_root(root_path, alpha0, beta0, args.z0)
         mk = MK.from_root(root_path, alpha0, beta0)
         smk = SMK.from_root(root_path, alpha0, beta0, args.z0)
+        dsmk = DSMK.from_root(root_path, alpha0, beta0, args.z0)
     except ValueError as e:
         sys.exit(f"[ERROR] {e}")
     alpha_s, beta_s = msmk.coefficients()
@@ -181,19 +192,22 @@ def main():
     S_MSMK_grid = np.clip(msmk.survival(D_grid), 1e-12, None)   # 对数轴下限保护
     S_MK_grid = np.clip(mk.survival(D_grid), 1e-12, None)   # 对数轴下限保护
     S_SMK_grid = np.clip(smk.survival(D_grid), 1e-12, None)   # 对数轴下限保护
-
+    S_DSMK_grid = np.clip(dsmk.survival(D_grid), 1e-12, None)   # 对数轴下限保护
     # 在实验剂量点处取模型值, 算 log-RMSE (仅 D>0)
     pos = D_obs > 0
     S_MSMK_at = msmk.survival(D_obs[pos])
     S_MK_at = mk.survival(D_obs[pos])
     S_SMK_at = smk.survival(D_obs[pos])
+    S_DSMK_at = dsmk.survival(D_obs[pos])
     lg_obs = np.log(np.clip(S_obs[pos], 1e-30, None))
     lg_MSMK_at = np.log(np.clip(S_MSMK_at, 1e-30, None))
     lg_MK_at = np.log(np.clip(S_MK_at, 1e-30, None))
     lg_SMK_at = np.log(np.clip(S_SMK_at, 1e-30, None))
+    lg_DSMK_at = np.log(np.clip(S_DSMK_at, 1e-30, None))
     rmse_MSMK_log = float(np.sqrt(np.mean((lg_obs - lg_MSMK_at) ** 2)))
     rmse_MK_log = float(np.sqrt(np.mean((lg_obs - lg_MK_at) ** 2)))
     rmse_SMK_log = float(np.sqrt(np.mean((lg_obs - lg_SMK_at) ** 2)))
+    rmse_DSMK_log = float(np.sqrt(np.mean((lg_obs - lg_DSMK_at) ** 2)))
     print("=" * 64)
     print("[3] 模型 vs Ac-225 实验 (对数空间)")
     print(f"    D 范围: 0–{D_obs.max():.3f} Gy,  数据点 {pos.sum()} 个")
@@ -207,12 +221,13 @@ def main():
     ax.plot(D_grid, S_MSMK_grid, color="#d62728", lw=2.2, label="修正 SMK 式")
     ax.plot(D_grid, S_MK_grid, color="#2ca02c", lw=2.2, label="MK 式")
     ax.plot(D_grid, S_SMK_grid, color="#ff7f0e", lw=2.2, label="SMK  式")
+    ax.plot(D_grid, S_DSMK_grid, color="#9467bd", lw=2.2, label="DSMK  式")
     ax.axhline(0.1, color="gray", ls=":", lw=1)
     ax.axhline(0.01, color="gray", ls=":", lw=1)
 
     ax.set_xlabel("Ac-225 吸收剂量 D (Gy)")
     ax.set_ylabel("存活分数 S(D)")
-    ax.set_title(f"修正 SMK 存活曲线 vs Ac-225 实验数据 (PC-3 PIP, $z_0$={args.z0} Gy)")
+    ax.set_title(f"各模型存活曲线 vs Ac-225 实验数据 (PC-3 PIP, $z_0$={args.z0} Gy)")
     ax.set_xlim(left=0)
     ax.set_ylim(1e-6, 1.1)
     if fig_mode == "log":

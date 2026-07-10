@@ -91,7 +91,7 @@ class SMK:
         饱和比能 z*_d = z₀·(1 - e^{-(z_d/z₀)²})  (式1, 无 sqrt, 标量或数组)
         """
         z_d = np.asarray(z_d, dtype=float)
-        return z0 * (1.0 - np.exp(-(z_d / z0) ** 2))
+        return z0 * np.sqrt((1.0 - np.exp(-(z_d / z0) ** 2)))
 
     # ============================================================
     # 备选构造: 从 microtrack.root events ntuple
@@ -204,7 +204,7 @@ class SMK:
             z_n = np.bincount(seg, weights=draws, minlength=N)   # (N,) 每试验的核比能
 
             # —— 单次抽样存活 + 求均值 ——
-            S_trial = np.exp(-self.alpha_S * z_n - self.beta_S * z_n * z_n)
+            S_trial = np.exp(- self.alpha_S * z_n - self.beta_S * z_n * z_n)
             out[i] = float(S_trial.mean())
 
         return float(out[0]) if scal else out.reshape(D.shape)
