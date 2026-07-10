@@ -42,4 +42,4 @@
 /run/particle/applyCuts true e-
 /run/particle/applyCuts true gamma
 
-/run/beamOn 5000
+/run/beamOn 15000

@@ -259,7 +259,10 @@ def main():
     curve_csv = out_dir / f"smk_ac225_{lq_mode}_{fig_mode}.csv"
     pd.DataFrame({
         "dose_Gy": D_grid,
-        "S_SMK": S_MSMK_grid,
+        "S_MSMK": S_MSMK_grid,
+        "S_SMK": S_SMK_grid,
+        "S_DSMK": S_DSMK_grid,
+        "S_MK": S_MK_grid,
         "alpha_S": np.full_like(D_grid, alpha_s),
         "beta_S": np.full_like(D_grid, beta_s),
         "z_n_D": np.full_like(D_grid, msmk.z_n_D),
