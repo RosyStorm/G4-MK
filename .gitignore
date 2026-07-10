@@ -39,6 +39,7 @@ result/
 *.out
 microtrack.out
 G4History.macro
+*__pycache__
 
 # ----- Geant4 可视化导出 -----
 *.heprep
