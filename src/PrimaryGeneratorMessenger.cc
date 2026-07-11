@@ -69,9 +69,10 @@ PrimaryGeneratorMessenger::PrimaryGeneratorMessenger(
   fSourceTypeCmd = std::make_unique<G4UIcmdWithAString>("/source/type", this);
   fSourceTypeCmd->SetGuidance(
     "源类型：proton（基线）| ac225（Ac-225 alpha，分布区间由 /source/compartment 设定）"
-    " | alpha（用于射程验证的单能 alpha，能量由 /gun/energy 设定）");
+    " | alpha（单能 alpha，能量由 /gun/energy 设定）"
+    " | ac225_decay（路线2：静止 Ac-225 完整衰变链 4α+β+γ+反冲，任务7.1）");
   fSourceTypeCmd->SetParameterName("type", false);
-  fSourceTypeCmd->SetCandidates("proton ac225 alpha");
+  fSourceTypeCmd->SetCandidates("proton ac225 alpha ac225_decay");
   fSourceTypeCmd->SetDefaultValue("ac225");
   fSourceTypeCmd->AvailableForStates(G4State_PreInit, G4State_Idle);
 

@@ -196,6 +196,19 @@ RunAction::RunAction()
   analysisManager->CreateNtupleIColumn("compartment");    // 11  0=Nuc,1=Cyt,2=Mem,3=Ext
   analysisManager->CreateNtupleDColumn("edep_total_keV"); // 12 全局能量沉积(任务6.2)
   analysisManager->FinishNtuple();
+
+  // 按粒子分组 ntuple (id=1, 每个单事件粒子一行) —— 路线2 出 f_{n,1}/f_{d,1}
+  analysisManager->CreateNtuple("single_events",
+    "Per-particle single-event (task 7.1: route-2 f_{n,1}/f_{d,1})");
+  analysisManager->CreateNtupleIColumn("eventID");        // 0
+  analysisManager->CreateNtupleIColumn("eventParticleID"); // 1 单事件粒子 ID
+  analysisManager->CreateNtupleIColumn("pdg");            // 2 粒子 PDG 编码
+  analysisManager->CreateNtupleDColumn("edep_n_keV");     // 3 该粒子的核沉积
+  analysisManager->CreateNtupleDColumn("z_n_Gy");         // 4 该粒子的核比能 z_n
+  analysisManager->CreateNtupleDColumn("edep_d_keV");     // 5 该粒子的域沉积(随机球抽样)
+  analysisManager->CreateNtupleDColumn("z_d_Gy");         // 6 该粒子的域比能 z_d
+  analysisManager->CreateNtupleDColumn("weight");         // 7 域抽样权 w=Nsel_p/Nsite_p
+  analysisManager->FinishNtuple();
 }
 
 

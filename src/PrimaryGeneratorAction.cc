@@ -66,6 +66,8 @@ PrimaryGeneratorAction::PrimaryGeneratorAction()
   // —— 设置默认粒子定义 ——
   fParticle = G4ParticleTable::GetParticleTable()->FindParticle("proton");
   fAlpha = G4ParticleTable::GetParticleTable()->FindParticle("alpha");
+  // 注: Ac-225 离子(Z=89,A=225)不在构造函数里取——此时 MT worker 上 GenericIon
+  //     尚未就绪会触发 PART105 并返回 nullptr。改为在 GeneratePrimaries 里延迟取(任务7.1)。
 }
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
@@ -115,6 +117,33 @@ void PrimaryGeneratorAction::GeneratePrimaries(G4Event* anEvent)
              << "  comp=" << fCompartment
              << "  |pos|=" << pos.mag() / um << " um"
              << "  dir=" << dir << G4endl;
+    }
+  }
+  else if (fSourceType == "ac225_decay") {
+    // —— 路线2(任务7.1): 完整衰变链 ——
+    // 静止的 Ac-225 离子置于源点，由 G4RadioactiveDecay 自动衰变(4α+β+γ+反冲核)。
+    // 能量=0(原子静止)，方向无意义；位置按区室抽样(与路线1一致，便于对比)。
+    // 延迟取 Ac-225 离子定义(构造函数里取会因 GenericIon 未就绪而失败)
+    if (!fAc225) {
+      fAc225 = G4IonTable::GetIonTable()->GetIon(89, 225, 0.0);
+    }
+    if (!fAc225) {
+      G4ExceptionDescription msg;
+      msg << "Ac-225 离子(Z=89,A=225)无法创建 — 检查 PhysicsList 是否构造了离子。";
+      G4Exception("PrimaryGeneratorAction::GeneratePrimaries", "PGA001",
+                  FatalException, msg);
+    }
+    G4ThreeVector pos = SampleSourcePosition();
+    fParticleGun->SetParticleDefinition(fAc225);
+    fParticleGun->SetParticlePosition(pos);
+    fParticleGun->SetParticleEnergy(0.0);
+    fParticleGun->SetParticleMomentumDirection(G4ThreeVector(0., 0., 1.));
+
+    if (anEvent->GetEventID() < 5) {
+      G4cout << "[Ac225-decay] event " << anEvent->GetEventID()
+             << "  comp=" << fCompartment
+             << "  |pos|=" << pos.mag() / um << " um"
+             << "  (Ac-225 at rest → full chain 4α+β+γ+recoil)" << G4endl;
     }
   }
   else {

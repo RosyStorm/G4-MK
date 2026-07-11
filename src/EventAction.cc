@@ -33,7 +33,11 @@
 
 #include "G4AnalysisManager.hh"
 #include "G4Event.hh"
+#include "G4ParticleDefinition.hh"
+#include "G4ProcessType.hh"
 #include "G4SystemOfUnits.hh"
+#include "G4Track.hh"
+#include "G4VProcess.hh"
 #include "globals.hh"
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
@@ -49,6 +53,45 @@ void EventAction::BeginOfEventAction(const G4Event* /*anEvent*/)
   fPrimaryVertex = G4ThreeVector();     // 初级 α 发射点清零
   fTotalEdep = 0.;                      // 任务6.2: 全局能量沉积清零
   fNucleusEdepBoundary = 0.;            // P0 修复 #1: 边界步核内 edep 累加器清零
+  // 按粒子分组(单事件): 清映射表
+  fTrack2Event.clear();
+  fEvent2PDG.clear();
+  fNextEventID = 0;
+}
+
+//....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
+
+G4int EventAction::EventParticleID(const G4Track* track) const
+{
+  /// 取该 track 所属"单事件粒子"的 ID(带缓存)。
+  /// 创建过程为 fDecay(衰变产物 α/β/反冲) 或无创建者(初级粒子) → 新 ID；
+  /// 电离次级(δ 电子等, 创建过程非 fDecay) → 继承母粒子 ID。
+  /// @param track 当前径迹
+  /// @return 单事件粒子 ID(≥0)
+
+  if (!track) return -1;
+  G4int tid = track->GetTrackID();
+  auto it = fTrack2Event.find(tid);
+  if (it != fTrack2Event.end()) return it->second;  // 已缓存
+
+  G4int eid = -1;
+  const G4VProcess* creator = track->GetCreatorProcess();
+  G4bool isNewEvent = (creator == nullptr)              // 初级(枪产生, 无 creator)
+                      || (creator->GetProcessType() == fDecay);  // 衰变产物(α/β/反冲)
+  if (isNewEvent) {
+    eid = fNextEventID++;                               // 新单事件粒子
+    if (track->GetParticleDefinition()) {
+      fEvent2PDG[eid] = track->GetParticleDefinition()->GetPDGEncoding();
+    }
+  }
+  else {
+    // 电离次级(δ 电子): 继承母粒子 ID(母粒子应已先被分类)
+    G4int pid = track->GetParentID();
+    auto pit = fTrack2Event.find(pid);
+    eid = (pit != fTrack2Event.end()) ? pit->second : fNextEventID++;  // fallback: 母未登记则自成一事件
+  }
+  fTrack2Event[tid] = eid;
+  return eid;
 }
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......

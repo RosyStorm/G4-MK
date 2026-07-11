@@ -46,6 +46,8 @@
 #include "G4SystemOfUnits.hh"
 #include "G4VProcess.hh"
 #include "Randomize.hh"
+
+#include "EventAction.hh"  // 按粒子分组打分(单事件 f_{n,1}/f_{d,1})
 #include "globals.hh"
 
 #include "DetectorConstruction.hh"
@@ -129,6 +131,13 @@ G4bool TrackerSD::ProcessHits(G4Step* aStep, G4TouchableHistory*)
 
   G4ThreeVector hitPosition = postStepPoint->GetPosition();  // 命中位置(步后点)
   newHit->SetPosition(hitPosition);
+
+  // 按粒子分组打标: 记录该 hit 所属"单事件粒子"ID(路线2 按粒子出 f_{n,1}/f_{d,1})
+  const auto* eventAction = static_cast<const EventAction*>(
+    G4RunManager::GetRunManager()->GetUserEventAction());
+  if (eventAction) {
+    newHit->SetEventParticleID(eventAction->EventParticleID(aTrack));
+  }
 
   // 将命中加入集合
   fHitsCollection->insert(newHit);
@@ -398,4 +407,69 @@ void TrackerSD::EndOfEvent(G4HCofThisEvent*)
 
   // —— 提交本事件 ntuple 行 ——
   analysisManager->AddNtupleRow();
+
+  // ===== 按粒子分组打分: 每个单事件粒子 → f_{n,1}/f_{d,1} (路线2; 路线1 退化为 1 组) =====
+  // 路线2 一次 Ac-225 衰变产生 4α+β+γ+反冲, 每个衰变产物(由 fDecay 创建)各算一次单事件。
+  // 路线1 一个事件 = 1 个 α → 1 组 → 与 per-event 完全一致。
+  if (nofHits > 0) {
+    // 按 eventParticleID 分组
+    std::map<G4int, std::vector<std::size_t>> groups;
+    for (std::size_t jj = 0; jj < nofHits; jj++) {
+      G4int epid = (*fHitsCollection)[jj]->GetEventParticleID();
+      if (epid >= 0) groups[epid].push_back(jj);
+    }
+    // 核质量与域质量
+    G4double massN_p =
+      (4./3.)*CLHEP::pi*nucleusRadius*nucleusRadius*nucleusRadius*detectorDensity;
+    G4double massD_p =
+      (4./3.)*CLHEP::pi*siteRadius*siteRadius*siteRadius*detectorDensity;
+
+    for (auto& kv : groups) {
+      G4int epid = kv.first;
+      auto& idxs = kv.second;
+      if (idxs.empty()) continue;
+
+      // —— 该粒子的核总沉积 → z_n (per-particle) ——
+      G4double partEdepN = 0.;
+      for (auto ii : idxs) partEdepN += (*fHitsCollection)[ii]->GetEdep();
+      if (partEdepN <= 0.) continue;
+      G4double z_n_p = partEdepN / massN_p;
+
+      // —— 该粒子的域 z_d: 在该粒子的 hits 内随机放域球(与 per-event 同法) ——
+      std::size_t ri = idxs[(std::size_t)(G4UniformRand() * idxs.size())];
+      G4ThreeVector anchor = (*fHitsCollection)[ri]->GetPosition();
+      G4double sr2 = siteRadius * siteRadius;
+      G4double xR, yR, zR, r2;
+      do {
+        xR = (2*G4UniformRand()-1)*siteRadius;
+        yR = (2*G4UniformRand()-1)*siteRadius;
+        zR = (2*G4UniformRand()-1)*siteRadius;
+        r2 = xR*xR + yR*yR + zR*zR;
+      } while (r2 > sr2);
+      G4ThreeVector center = anchor + G4ThreeVector(xR, yR, zR);
+
+      G4double partEdepD = 0.;
+      G4int nSite_p = 0;
+      for (auto ii : idxs) {
+        if (((*fHitsCollection)[ii]->GetPosition() - center).mag() < siteRadius) {
+          partEdepD += (*fHitsCollection)[ii]->GetEdep();
+          nSite_p++;
+        }
+      }
+      G4double z_d_p = (massD_p > 0.) ? partEdepD / massD_p : 0.;
+      G4double w_p = (nSite_p > 0) ? G4double(idxs.size())/G4double(nSite_p) : 0.;
+
+      // —— 填 single_events ntuple (id=1) ——
+      G4int pdg = evtAct ? evtAct->EventParticlePDG(epid) : 0;
+      analysisManager->FillNtupleIColumn(1, 0, evt ? evt->GetEventID() : 0);
+      analysisManager->FillNtupleIColumn(1, 1, epid);
+      analysisManager->FillNtupleIColumn(1, 2, pdg);
+      analysisManager->FillNtupleDColumn(1, 3, partEdepN / keV);
+      analysisManager->FillNtupleDColumn(1, 4, z_n_p / gray);
+      analysisManager->FillNtupleDColumn(1, 5, partEdepD / keV);
+      analysisManager->FillNtupleDColumn(1, 6, z_d_p / gray);
+      analysisManager->FillNtupleDColumn(1, 7, w_p);
+      analysisManager->AddNtupleRow(1);
+    }
+  }
 }

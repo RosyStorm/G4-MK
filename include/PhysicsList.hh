@@ -65,6 +65,7 @@ class PhysicsList : public G4VModularPhysicsList
     // ===== 物理构造器与交互命令 =====
     G4String fName = "";                                       // 当前激活的物理构造器名称
     std::unique_ptr<G4VPhysicsConstructor> fPhysicsList;       // 当前电磁物理构造器
+    std::unique_ptr<G4VPhysicsConstructor> fDecayPhysics;      // 放射性衰变物理(路线2, 任务7.1)
     std::unique_ptr<PhysicsListMessenger> fMessenger;          // UI 命令交互对象
 };
 

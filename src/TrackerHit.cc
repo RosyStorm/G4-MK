@@ -58,6 +58,7 @@ TrackerHit::TrackerHit(const TrackerHit& right) : G4VHit()
 
   fTrackID = right.fTrackID;
   fEdep = right.fEdep;
+  fEventParticleID = right.fEventParticleID;
 }
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
@@ -68,9 +69,11 @@ const TrackerHit& TrackerHit::operator=(const TrackerHit& right)
   /// @param right 被赋值的命中对象
   /// @return 本对象的引用
 
-  fTrackID = right.fTrackID;
-  fEdep = right.fEdep;
-
+  if (this != &right) {
+    fTrackID = right.fTrackID;
+    fEdep = right.fEdep;
+    fEventParticleID = right.fEventParticleID;
+  }
   return *this;
 }
 

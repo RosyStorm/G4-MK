@@ -68,12 +68,14 @@ class TrackerHit : public G4VHit
     {
       fPartDef = partDef;
     }
+    inline void SetEventParticleID(G4int eid) { fEventParticleID = eid; }  // 设置单事件粒子 ID
 
     // ===== 查询接口 (GET) =====
     inline G4int GetTrackID() const { return fTrackID; }                        // 取径迹 ID
     inline G4ThreeVector GetPosition() const { return fPos; }                   // 取命中位置
     inline G4double GetEdep() const { return fEdep; }                           // 取能量沉积
     inline const G4ParticleDefinition* GetPartDef() const { return fPartDef; }  // 取粒子定义
+    inline G4int GetEventParticleID() const { return fEventParticleID; }        // 取单事件粒子 ID
 
   private:
     // ===== 命中数据成员 =====
@@ -81,6 +83,7 @@ class TrackerHit : public G4VHit
     G4ThreeVector fPos = G4ThreeVector();           // 命中位置
     G4double fEdep = 0.;                            // 能量沉积（内部单位）
     const G4ParticleDefinition* fPartDef = nullptr;  // 粒子定义
+    G4int fEventParticleID = -1;                    // 单事件粒子 ID(按粒子分组打分, 路线2)
 };
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......

@@ -63,6 +63,7 @@
 #include "G4EmLivermorePhysics.hh"
 #include "G4EmPenelopePhysics.hh"
 #include "G4EmStandardPhysics_option4.hh"
+#include "G4RadioactiveDecayPhysics.hh"   // 放射性衰变(路线2, 任务7.1)
 
 
 
@@ -82,6 +83,10 @@ PhysicsList::PhysicsList() : G4VModularPhysicsList()
 
   // 默认使用 DNA 物理 option2
   fPhysicsList = std::make_unique<G4EmDNAPhysics_option2>();
+
+  // 放射性衰变物理(路线2, 任务7.1): 自动模拟 Ac-225 完整衰变链(α/β/γ/核反冲)。
+  // 常驻注册——仅影响放射性核素(Ac-225 及子核), 稳定的 α/质子不受影响。
+  fDecayPhysics = std::make_unique<G4RadioactiveDecayPhysics>();
 }
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
@@ -143,6 +148,9 @@ void PhysicsList::ConstructProcess()
 
   // —— 电磁/DNA 物理过程 ——
   fPhysicsList->ConstructProcess();
+
+  // —— 放射性衰变(路线2, 任务7.1): α/β/γ/核反冲衰变链 ——
+  fDecayPhysics->ConstructProcess();
 
   // —— 设置粒子产生阈截断(cuts) ——
   SetCuts();

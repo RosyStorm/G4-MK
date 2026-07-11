@@ -1,0 +1,53 @@
+#========================================#
+# PC3 细胞 + Ac-225 完整衰变链(路线2)     #
+# /source/type ac225_decay: 静止 Ac-225   #
+# 由 G4RadioactiveDecay 自动跑 4α+β+γ+反冲 #
+# 几何与 run_pc3.mac 一致(便于路线1对比)   #
+#========================================#
+
+/control/verbose 0
+/run/verbose 2
+/tracking/verbose 0
+
+/random/setSeeds 102 001
+
+###########################
+### SETUP CONFIGURATION ###
+###########################
+/mygeom/maxRange        100. um
+/mygeom/material        G4_WATER
+/mygeom/cellRadius       11.2 um
+/mygeom/nucleusRadius     6.4 um
+/mygeom/siteRadius       0.274 um
+### ⚠ 路线2 必须 kill OFF！kill 会杀死源点处的衰变子核(Fr-221/At-217/...反冲核),
+###    把衰变链截断在第 1 个 α(kill ON 时 edep 仅~298keV; kill OFF 时~28MeV=完整4α链)。
+/mygeom/killOutsideCell false
+/mygeom/killAtNucleus   false
+
+####################
+### PHYSICS LIST ###
+####################
+/physics/addPhysics dna_opt2
+/run/setCutForAGivenParticle gamma   0.01 um
+/run/setCutForAGivenParticle e-      0.01 um
+/run/setCutForAGivenParticle e+      0.01 um
+/run/setCutForAGivenParticle proton  0.01 um
+
+######################
+### INITIALIZATION ###
+######################
+/run/numberOfThreads 16
+/run/initialize
+
+#############################
+### SOURCE (路线2 完整衰变) ###
+#############################
+### 静止 Ac-225 离子在膜面 → G4RadioactiveDecay 自动衰变(4α+β+γ+反冲核)
+/source/type ac225_decay
+/source/compartment Membrane
+
+/run/particle/applyCuts true e-
+/run/particle/applyCuts true gamma
+
+### 先用少量事件验证衰变链是否完整跑完(4α), 再扩量
+/run/beamOn 100

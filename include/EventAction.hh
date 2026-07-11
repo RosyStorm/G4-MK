@@ -37,6 +37,10 @@
 #include "G4UserEventAction.hh"
 #include "globals.hh"
 
+#include <map>
+
+class G4Track;
+
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
 
 /// @brief 逐事件动作类
@@ -90,6 +94,24 @@ class EventAction : public G4UserEventAction
     /// @return 边界步核内能量沉积（内部单位）
     G4double GetNucleusEdepBoundary() const { return fNucleusEdepBoundary; }
 
+    // ===== 按粒子分组(单事件 f_{n,1}/f_{d,1}; 路线2 用, 路线1 退化为 1 组)=====
+    /// 取该 track 所属"单事件粒子"的 ID。
+    /// 分类: 创建过程为 fDecay(RadioactiveDecay 产物: α/β/反冲) 或无创建者(初级) → 新 eventID;
+    ///       电离次级(δ 电子) → 继承母粒子的 eventID。结果缓存于 fTrack2Event。
+    /// @param track 当前径迹
+    /// @return 单事件粒子 ID(≥0)
+    G4int EventParticleID(const G4Track* track) const;
+    /// 取某 eventID 对应粒子的 PDG 编码(填 ntuple 用)。
+    /// @param eid 单事件粒子 ID
+    /// @return PDG 编码(未登记返回 0)
+    G4int EventParticlePDG(G4int eid) const
+    {
+      auto it = fEvent2PDG.find(eid);
+      return it != fEvent2PDG.end() ? it->second : 0;
+    }
+
+  private:
+
   private:
     // ===== 逐事件累加量 =====
     G4ThreeVector fPrimaryVertex{};              // 初级 α 发射点
@@ -97,6 +119,11 @@ class EventAction : public G4UserEventAction
     G4bool fHaveVertex = false;                  // 是否已登记发射点
     G4double fTotalEdep = 0.;                    // 全局能量沉积（任务6.2 能量平衡）
     G4double fNucleusEdepBoundary = 0.;          // 边界步核内 edep 补加（P0 修复 #1）
+
+    // ===== 按粒子分组(单事件; 路线2)=====
+    mutable std::map<G4int, G4int> fTrack2Event;  // trackID → 单事件粒子 ID
+    mutable std::map<G4int, G4int> fEvent2PDG;    // 单事件粒子 ID → PDG 编码
+    mutable G4int fNextEventID = 0;                // 下一个单事件粒子 ID
 };
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
