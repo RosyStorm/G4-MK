@@ -109,6 +109,14 @@ class EventAction : public G4UserEventAction
       auto it = fEvent2PDG.find(eid);
       return it != fEvent2PDG.end() ? it->second : 0;
     }
+    /// 取某 eventID 对应粒子的动能(填 ntuple alphaE_MeV 用)。
+    /// @param eid 单事件粒子 ID
+    /// @return 产生时动能(未登记返回 0)
+    G4double EventParticleKE(G4int eid) const
+    {
+      auto it = fEvent2KE.find(eid);
+      return it != fEvent2KE.end() ? it->second : 0.;
+    }
 
   private:
 
@@ -123,6 +131,7 @@ class EventAction : public G4UserEventAction
     // ===== 按粒子分组(单事件; 路线2)=====
     mutable std::map<G4int, G4int> fTrack2Event;  // trackID → 单事件粒子 ID
     mutable std::map<G4int, G4int> fEvent2PDG;    // 单事件粒子 ID → PDG 编码
+    mutable std::map<G4int, G4double> fEvent2KE;   // 单事件粒子 ID → 产生时动能
     mutable G4int fNextEventID = 0;                // 下一个单事件粒子 ID
 };
 

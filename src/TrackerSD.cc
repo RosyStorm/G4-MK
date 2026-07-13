@@ -459,16 +459,24 @@ void TrackerSD::EndOfEvent(G4HCofThisEvent*)
       G4double z_d_p = (massD_p > 0.) ? partEdepD / massD_p : 0.;
       G4double w_p = (nSite_p > 0) ? G4double(idxs.size())/G4double(nSite_p) : 0.;
 
-      // —— 填 single_events ntuple (id=1) ——
+      // —— 填 single_events ntuple (id=1): 列 0-12 与 events 完全一致 ——
       G4int pdg = evtAct ? evtAct->EventParticlePDG(epid) : 0;
-      analysisManager->FillNtupleIColumn(1, 0, evt ? evt->GetEventID() : 0);
-      analysisManager->FillNtupleIColumn(1, 1, epid);
-      analysisManager->FillNtupleIColumn(1, 2, pdg);
-      analysisManager->FillNtupleDColumn(1, 3, partEdepN / keV);
-      analysisManager->FillNtupleDColumn(1, 4, z_n_p / gray);
-      analysisManager->FillNtupleDColumn(1, 5, partEdepD / keV);
-      analysisManager->FillNtupleDColumn(1, 6, z_d_p / gray);
-      analysisManager->FillNtupleDColumn(1, 7, w_p);
+      G4double partKE = evtAct ? evtAct->EventParticleKE(epid) / MeV : 0.;
+      analysisManager->FillNtupleIColumn(1, 0, evt ? evt->GetEventID() : 0);   // eventID
+      analysisManager->FillNtupleDColumn(1, 1, partKE);                         // alphaE_MeV(粒子动能)
+      analysisManager->FillNtupleDColumn(1, 2, partEdepD / keV);               // edep_d_keV
+      analysisManager->FillNtupleDColumn(1, 3, z_d_p / gray);                  // z_d_Gy
+      analysisManager->FillNtupleDColumn(1, 4, partEdepN / keV);               // edep_n_keV
+      analysisManager->FillNtupleDColumn(1, 5, z_n_p / gray);                  // z_n_Gy
+      analysisManager->FillNtupleDColumn(1, 6, w_p);                           // weight
+      analysisManager->FillNtupleIColumn(1, 7, G4int(idxs.size()));            // nHsel
+      analysisManager->FillNtupleIColumn(1, 8, nSite_p);                       // nHsite
+      analysisManager->FillNtupleIColumn(1, 9, nSite_p);                       // nHint(=nHsite)
+      analysisManager->FillNtupleIColumn(1, 10, 1);                            // hitFlag(恒1)
+      analysisManager->FillNtupleIColumn(1, 11, compId);                       // compartment
+      analysisManager->FillNtupleDColumn(1, 12, partEdepN / keV);              // edep_total(≈edep_n)
+      analysisManager->FillNtupleIColumn(1, 13, epid);                         // eventParticleID[额外]
+      analysisManager->FillNtupleIColumn(1, 14, pdg);                          // pdg[额外]
       analysisManager->AddNtupleRow(1);
     }
   }

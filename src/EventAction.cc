@@ -56,6 +56,7 @@ void EventAction::BeginOfEventAction(const G4Event* /*anEvent*/)
   // 按粒子分组(单事件): 清映射表
   fTrack2Event.clear();
   fEvent2PDG.clear();
+  fEvent2KE.clear();
   fNextEventID = 0;
 }
 
@@ -83,12 +84,23 @@ G4int EventAction::EventParticleID(const G4Track* track) const
     if (track->GetParticleDefinition()) {
       fEvent2PDG[eid] = track->GetParticleDefinition()->GetPDGEncoding();
     }
+    fEvent2KE[eid] = track->GetVertexKineticEnergy();   // 存产生时动能(填 ntuple 用)
   }
   else {
     // 电离次级(δ 电子): 继承母粒子 ID(母粒子应已先被分类)
     G4int pid = track->GetParentID();
     auto pit = fTrack2Event.find(pid);
-    eid = (pit != fTrack2Event.end()) ? pit->second : fNextEventID++;  // fallback: 母未登记则自成一事件
+    if (pit != fTrack2Event.end()) {
+      eid = pit->second;
+    }
+    else {
+      // fallback: 母粒子未登记(罕见) → 自成一新事件
+      eid = fNextEventID++;
+      if (track->GetParticleDefinition()) {
+        fEvent2PDG[eid] = track->GetParticleDefinition()->GetPDGEncoding();
+      }
+      fEvent2KE[eid] = track->GetVertexKineticEnergy();
+    }
   }
   fTrack2Event[tid] = eid;
   return eid;

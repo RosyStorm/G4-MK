@@ -198,16 +198,24 @@ RunAction::RunAction()
   analysisManager->FinishNtuple();
 
   // 按粒子分组 ntuple (id=1, 每个单事件粒子一行) —— 路线2 出 f_{n,1}/f_{d,1}
+  // 列 0-12 与 events (id=0) 完全一致(共用分析代码); 13-14 为路线2 额外列
   analysisManager->CreateNtuple("single_events",
     "Per-particle single-event (task 7.1: route-2 f_{n,1}/f_{d,1})");
-  analysisManager->CreateNtupleIColumn("eventID");        // 0
-  analysisManager->CreateNtupleIColumn("eventParticleID"); // 1 单事件粒子 ID
-  analysisManager->CreateNtupleIColumn("pdg");            // 2 粒子 PDG 编码
-  analysisManager->CreateNtupleDColumn("edep_n_keV");     // 3 该粒子的核沉积
-  analysisManager->CreateNtupleDColumn("z_n_Gy");         // 4 该粒子的核比能 z_n
-  analysisManager->CreateNtupleDColumn("edep_d_keV");     // 5 该粒子的域沉积(随机球抽样)
-  analysisManager->CreateNtupleDColumn("z_d_Gy");         // 6 该粒子的域比能 z_d
-  analysisManager->CreateNtupleDColumn("weight");         // 7 域抽样权 w=Nsel_p/Nsite_p
+  analysisManager->CreateNtupleIColumn("eventID");         // 0  (同 events)
+  analysisManager->CreateNtupleDColumn("alphaE_MeV");      // 1  该粒子产生时动能
+  analysisManager->CreateNtupleDColumn("edep_d_keV");      // 2
+  analysisManager->CreateNtupleDColumn("z_d_Gy");          // 3
+  analysisManager->CreateNtupleDColumn("edep_n_keV");      // 4
+  analysisManager->CreateNtupleDColumn("z_n_Gy");          // 5
+  analysisManager->CreateNtupleDColumn("weight");          // 6
+  analysisManager->CreateNtupleIColumn("nHsel");           // 7  该粒子核内 hit 数
+  analysisManager->CreateNtupleIColumn("nHsite");           // 8  该粒子域内 hit 数
+  analysisManager->CreateNtupleIColumn("nHint");            // 9
+  analysisManager->CreateNtupleIColumn("hitFlag");          // 10 恒为 1(有沉积才入此表)
+  analysisManager->CreateNtupleIColumn("compartment");      // 11
+  analysisManager->CreateNtupleDColumn("edep_total_keV");  // 12 该粒子核沉积(≈edep_n)
+  analysisManager->CreateNtupleIColumn("eventParticleID");  // 13 [路线2额外] 单事件粒子 ID
+  analysisManager->CreateNtupleIColumn("pdg");              // 14 [路线2额外] PDG 编码
   analysisManager->FinishNtuple();
 }
 

@@ -99,7 +99,7 @@ class ModifiedSMK:
     # 备选构造: 从 microtrack.root events ntuple
     # ============================================================
     @classmethod
-    def from_root(cls, root_path, alpha0, beta0, z0):
+    def from_root(cls, root_path, tree_name, alpha0, beta0, z0):
         """
         从 microtrack.root 的 events ntuple 算微剂量学量并构建模型。
         仅用命中事件 (hitFlag==1), 与 analyze_mk.C / plot_smk_ac225_overlay.py 一致。
@@ -110,7 +110,7 @@ class ModifiedSMK:
         """
         import ROOT  # 延迟导入: 避免 import smk 时强依赖 PyROOT
 
-        rdf = ROOT.RDataFrame("events", str(root_path))
+        rdf = ROOT.RDataFrame(str(tree_name), str(root_path))
         n_entries = rdf.Count().GetValue()
         if n_entries == 0:
             raise ValueError(f"{root_path} 内 events ntuple 为空")

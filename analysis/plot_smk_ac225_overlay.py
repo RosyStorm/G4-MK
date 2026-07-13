@@ -117,27 +117,30 @@ def main():
     )
     ap.add_argument("--root", default="data/microtrack.root",
                     help="microtrack 模拟 ntuple 路径 (默认 data/microtrack.root)")
+    ap.add_argument("--tree", default="single_events", help="microtrack 模拟 ntuple 树名 (默认 events)")
     ap.add_argument("--lq-csv", default="result/validation/lq_fit_xray_actual.csv",
                     help="fit_lq_xray.py 输出的拟合曲线 CSV (含 alpha,beta 列); "
                          "默认 actual 模式, 可换 lq_fit_xray_nominal.csv")
     ap.add_argument("--ac225", default="data/validation/Ac225_survival.csv",
                     help="Ac-225 实验存活数据 CSV (默认 data/validation/Ac225_survival.csv)")
-    ap.add_argument("--z0", type=float, default=40.0,
-                    help="饱和参数 z₀ [Gy] (analyze_mk.C 默认 66.0, Inaniwa HSG; PC-3 无公开值)")
-    ap.add_argument("--dmax", type=float, default=None,
-                    help="存活曲线剂量上限 [Gy]; 默认取数据最大剂量的 1.05 倍")
-    ap.add_argument("--outdir", default="result/validation/smk-fit",
+    ap.add_argument("--z0", type=float, default=40.0, help="饱和参数 z₀ [Gy] (analyze_mk.C 默认 66.0, Inaniwa HSG; PC-3 无公开值)")
+    ap.add_argument("--dmax", type=float, default=None, help="存活曲线剂量上限 [Gy]; 默认取数据最大剂量的 1.05 倍")
+    ap.add_argument("--outdir", default="result/validation/mks-fit",
                     help="输出目录 (默认 result/validation, 与 analyze_mk.C 一致)")
-    ap.add_argument("--fig-mode", default="normal",
-                    help="图形模式 (normal: 正常模式, log: 对数模式)")
+    ap.add_argument("--fig-mode", default="normal", help="图形模式 (normal: 正常模式, log: 对数模式)")
     args = ap.parse_args()
 
     # —— 路径准备与存在性校验 ——
     root_path = Path(args.root)
+    tree_name = Path(args.tree)
     lq_path = Path(args.lq_csv)
     ac225_path = Path(args.ac225)
     out_dir = Path(args.outdir)
     fig_mode = args.fig_mode
+    if tree_name == Path("events"):
+        source_mode = "4alpha"
+    else:
+        source_mode = "ac225decay"
     out_dir.mkdir(parents=True, exist_ok=True)
     for p in (root_path, lq_path, ac225_path):
         if not p.exists():
@@ -159,10 +162,11 @@ def main():
 
     # —— 2+3. 用 ModifiedSMK 建模: 从 root 算微剂量学量 + SMK 系数 ——
     try:
-        msmk = ModifiedSMK.from_root(root_path, alpha0, beta0, args.z0)
-        mk = MK.from_root(root_path, alpha0, beta0)
-        smk = SMK.from_root(root_path, alpha0, beta0, args.z0)
-        dsmk = DSMK.from_root(root_path, alpha0, beta0, args.z0)
+        msmk = ModifiedSMK.from_root(root_path, tree_name, alpha0, beta0, args.z0)
+        mk = MK.from_root(root_path, tree_name, alpha0, beta0)
+        smk = SMK.from_root(root_path, tree_name, alpha0, beta0, args.z0)
+        dsmk = DSMK.from_root(root_path, tree_name, alpha0, beta0, args.z0)
+
     except ValueError as e:
         sys.exit(f"[ERROR] {e}")
     alpha_s, beta_s = msmk.coefficients()
@@ -173,8 +177,8 @@ def main():
     print(f"    z̄_{{d,F}} = {msmk.z_d_F:.5f} Gy   z̄_{{d,D}} = {msmk.z_d_D:.5f} Gy")
     print(f"    z̄*_{{d,D}}= {msmk.zs_d_D:.5f} Gy   (饱和)")
     print(f"    z̄_{{n,F}} = {msmk.z_n_F:.5g} Gy   z̄_{{n,D}} = {msmk.z_n_D:.5f} Gy")
-    print(f"    α_S = α₀ + β₀·z̄*_{{d,D}}            = {alpha_s:.5f} Gy⁻¹")
-    print(f"    β_S = β₀·z̄*_{{d,D}}/z̄_{{d,D}}        = {beta_s:.5f} Gy⁻²")
+    # print(f"    α_S = α₀ + β₀·z̄*_{{d,D}}            = {alpha_s:.5f} Gy⁻¹")
+    # print(f"    β_S = β₀·z̄*_{{d,D}}/z̄_{{d,D}}        = {beta_s:.5f} Gy⁻²")
 
     # —— 4. Ac-225 实验数据 ——
     df_ac = pd.read_csv(ac225_path)
@@ -211,7 +215,10 @@ def main():
     print("=" * 64)
     print("[3] 模型 vs Ac-225 实验 (对数空间)")
     print(f"    D 范围: 0–{D_obs.max():.3f} Gy,  数据点 {pos.sum()} 个")
-    print(f"    RMSE(ln S) = {rmse_MSMK_log:.5f}")
+    print(f"    RMSE(ln S) MSMK = {rmse_MSMK_log:.5f}")
+    print(f"    RMSE(ln S) MK = {rmse_MK_log:.5f}")
+    print(f"    RMSE(ln S) SMK = {rmse_SMK_log:.5f}")
+    print(f"    RMSE(ln S) DSMK = {rmse_DSMK_log:.5f}")
 
     # —— 6. 画图 ——
     ymin = np.min(S_obs[pos]) / 2
@@ -249,14 +256,14 @@ def main():
     #                   edgecolor="gray", alpha=0.92))
     fig.tight_layout()
 
-    png = out_dir / f"smk_ac225_{lq_mode}_{fig_mode}.png"
+    png = out_dir / f"ac225_{lq_mode}_{fig_mode}_{source_mode}.png"
     fig.savefig(png, dpi=150)
     plt.close(fig)
     print("=" * 64)
     print(f"[输出] 图像 → {png}")
 
     # —— 7. 曲线 CSV + 摘要 TXT ——
-    curve_csv = out_dir / f"smk_ac225_{lq_mode}_{fig_mode}.csv"
+    curve_csv = out_dir / f"ac225_{lq_mode}_{fig_mode}_{source_mode}.csv"
     pd.DataFrame({
         "dose_Gy": D_grid,
         "S_MSMK": S_MSMK_grid,
@@ -268,9 +275,9 @@ def main():
         "z_n_D": np.full_like(D_grid, msmk.z_n_D),
     }).to_csv(curve_csv, index=False)
 
-    txt_path = out_dir / f"smk_ac225_{lq_mode}_{fig_mode}.txt"
+    txt_path = out_dir / f"ac225_{lq_mode}_{fig_mode}_{source_mode}.txt"
     with open(txt_path, "w", encoding="utf-8") as f:
-        f.write("修正 SMK 存活曲线 vs Ac-225 实验 (PC-3 PIP)\n")
+        f.write("存活曲线 vs Ac-225 实验 (PC-3 PIP)\n")
         f.write("=" * 56 + "\n")
         f.write("模型: S(D)=exp(-α_S D - β_S D²)·[1+(D·z̄_{n,D}/2)·((α_S+2β_S D)²-2β_S)]  (Inaniwa 式24)\n")
         f.write(f"α₀, β₀ 来源: {lq_path} ({lq_mode})\n")
