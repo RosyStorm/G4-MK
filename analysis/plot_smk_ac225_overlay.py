@@ -115,8 +115,8 @@ def main():
     ap = argparse.ArgumentParser(
         description="修正 SMK 存活曲线 (α₀/β₀ 取自 X 射线 LQ 拟合) × Ac-225 实验数据叠加图"
     )
-    ap.add_argument("--root", default="data/microtrack.root",
-                    help="microtrack 模拟 ntuple 路径 (默认 data/microtrack.root)")
+    ap.add_argument("--root", default="data/ac225_phy_decay_Membrane.root",
+                    help="microtrack 模拟 ntuple 路径 (默认 data/ac225_phy_decay_Membrane.root)")
     ap.add_argument("--tree", default="single_events", help="microtrack 模拟 ntuple 树名 (默认 events)")
     ap.add_argument("--lq-csv", default="result/validation/lq_fit_xray_actual.csv",
                     help="fit_lq_xray.py 输出的拟合曲线 CSV (含 alpha,beta 列); "

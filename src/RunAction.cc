@@ -37,6 +37,8 @@
 #include "G4UnitsTable.hh"
 #include "globals.hh"
 
+#include "PrimaryGeneratorAction.hh"  // 取源类型/区室 → 动态文件名
+
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
 
 RunAction::RunAction()
@@ -237,14 +239,32 @@ void RunAction::BeginOfRunAction(const G4Run* /*aRun*/)
   // —— 获取分析管理器 ——
   auto analysisManager = G4AnalysisManager::Instance();
 
-  // —— 打开输出文件 ——
-  // 文件扩展名决定输出格式；输出统一放到 data/ 子目录，便于和源码/macro/analysis 分离
-  G4String fileName = "data/microtrack.root";
-  // 其他支持格式: .csv, .hdf5, .xml
-  // G4String fileName = "data/microtrack.csv";
-  // G4String fileName = "data/microtrack.hdf5";
-  // G4String fileName = "data/microtrack.xml";
+  // —— 根据源类型 + 区室动态生成文件名 ——
+  // 统一放在 data/ 下, 按 {源类型}_{区室}.root 命名, 避免不同配置互相覆盖
+  const auto* pga = dynamic_cast<const PrimaryGeneratorAction*>(
+    G4RunManager::GetRunManager()->GetUserPrimaryGeneratorAction());
+  G4String sourceType = pga ? pga->GetSourceType() : "ac225_decay";
+  G4String compartment = pga ? pga->GetCompartment() : "Membrane";
+
+  G4String fileName;
+  if (sourceType == "ac225_decay") {
+    fileName = "data/ac225_phy_decay_" + compartment + ".root";
+  }
+  else if (sourceType == "ac225") {
+    fileName = "data/4alpha_" + compartment + ".root";
+  }
+  else if (sourceType == "proton") {
+    fileName = "data/proton_" + compartment + ".root";
+  }
+  else if (sourceType == "alpha") {
+    fileName = "data/alpha.root";   // 单 α 验证, 无区室
+  }
+  else {
+    fileName = "data/microtrack.root";  // 兜底
+  }
+
   analysisManager->OpenFile(fileName);
+  G4cout << "输出文件: " << fileName << G4endl;
   G4cout << "使用 " << analysisManager->GetType() << " 分析管理器" << G4endl;
 }
 
