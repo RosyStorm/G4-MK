@@ -85,8 +85,13 @@ void SteppingAction::UserSteppingAction(const G4Step* step)
     G4ThreeVector position = post->GetPosition();
     if (position.mag() > killRadius) {
       if (position.dot(post->GetMomentumDirection()) > 0.) {
-        track->SetTrackStatus(fStopAndKill);
-        return;
+        // 选择性 kill(任务7.1 方案A): 只杀轻粒子(α/e⁻/γ, Z≤2), 放过重离子(反冲核 Z>2)。
+        // 路线2 衰变子核(Fr Z=87/At Z=85/Bi Z=83/Po Z=84/Pb Z=82)须存活以继续衰变;
+        // 路线1 只有 α+δ电子(均 Z≤2) → 完全不受影响, 行为与之前一致。
+        if (track->GetParticleDefinition()->GetAtomicNumber() <= 2) {
+          track->SetTrackStatus(fStopAndKill);
+          return;
+        }
       }
     }
   }

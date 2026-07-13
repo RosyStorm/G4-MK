@@ -19,10 +19,10 @@
 /mygeom/cellRadius       11.2 um
 /mygeom/nucleusRadius     6.4 um
 /mygeom/siteRadius       0.274 um
-### ⚠ 路线2 必须 kill OFF！kill 会杀死源点处的衰变子核(Fr-221/At-217/...反冲核),
-###    把衰变链截断在第 1 个 α(kill ON 时 edep 仅~298keV; kill OFF 时~28MeV=完整4α链)。
-/mygeom/killOutsideCell false
-/mygeom/killAtNucleus   false
+### 路线2 现在 kill ON + 选择性 kill(方案A): 杀 α/e⁻/γ(Z≤2), 放过反冲核(Z>2)
+### → 衰变子核(Fr/At/Bi/Po)存活→链完整; 4α 被 kill 截短→快(≈4×路线1)
+/mygeom/killOutsideCell true
+/mygeom/killAtNucleus   true
 
 ####################
 ### PHYSICS LIST ###
@@ -50,4 +50,4 @@
 /run/particle/applyCuts true gamma
 
 ### 先用少量事件验证衰变链是否完整跑完(4α), 再扩量
-/run/beamOn 100
+/run/beamOn 5000
