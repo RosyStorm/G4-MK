@@ -223,7 +223,7 @@ def main():
     # —— 6. 画图 ——
     ymin = np.min(S_obs[pos]) / 2
     fig, ax = plt.subplots(figsize=(8.0, 5.6), dpi=150)
-    ax.scatter(D_obs[pos], S_obs[pos], s=66, c="#1f77b4", edgecolor="black",
+    ax.scatter(D_obs[pos] * 0.9, S_obs[pos], s=66, c="#1f77b4", edgecolor="black",
                label="Ac-225 实验 (PC-3 PIP)", zorder=5)
     ax.plot(D_grid, S_MSMK_grid, color="#d62728", lw=2.2, label="修正 SMK 式")
     ax.plot(D_grid, S_MK_grid, color="#2ca02c", lw=2.2, label="MK 式")
