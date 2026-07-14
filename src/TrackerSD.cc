@@ -372,7 +372,7 @@ void TrackerSD::EndOfEvent(G4HCofThisEvent*)
   }
 
   // 区室编号映射
-  G4int compId = 4;  // 未知区室
+  G4int compId = 4;  // 未知区室 (兜底, 应不命中)
   const auto* pga = dynamic_cast<const PrimaryGeneratorAction*>(
     G4RunManager::GetRunManager()->GetUserPrimaryGeneratorAction());
   if (pga) {
@@ -381,6 +381,8 @@ void TrackerSD::EndOfEvent(G4HCofThisEvent*)
     else if (c == "Cytoplasm") compId = 1;
     else if (c == "Membrane") compId = 2;
     else if (c == "Extracellular") compId = 3;
+    else if (c == "WholeCell")           compId = 5;  // 整个细胞均匀
+    else if (c == "CellExceptNucleus")   compId = 6;  // 除核外均匀
   }
 
   // 加权（miss 事件取 0）

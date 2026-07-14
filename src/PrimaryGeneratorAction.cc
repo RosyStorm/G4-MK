@@ -248,9 +248,21 @@ PrimaryGeneratorAction::SampleSourcePosition() const
   G4double Rworld = Rc + (det ? det->GetMaxRange() : 49. * um);  // 世界半边长
 
   // 按区室选择对应的抽样方式
-  if (fCompartment == "Nucleus")       return SampleInSphere(Rn);
-  if (fCompartment == "Cytoplasm")     return SampleInShell(Rn, Rc);
-  if (fCompartment == "Extracellular") return SampleInBoxMinusSphere(Rc, Rworld);
+  if (fCompartment == "Nucleus")           return SampleInSphere(Rn);
+  if (fCompartment == "Cytoplasm")         return SampleInShell(Rn, Rc);
+  if (fCompartment == "Extracellular")     return SampleInBoxMinusSphere(Rc, Rworld);
+  // CellExceptNucleus: 细胞体均匀, 但排除 Nucleus (即 Cytoplasm ∪ Membrane, 不含核)
+  if (fCompartment == "CellExceptNucleus") {
+    G4ThreeVector p;
+    do {
+      p = SampleInSphere(Rc);
+    } while (p.mag() < Rn);   // 拒绝落入核内的点
+    return p;
+  }
+  // WholeCell: 整个 Rc 球内均匀 (Nucleus ∪ Cytoplasm ∪ Membrane), 等价于 SampleInSphere(Rc)
+  if (fCompartment == "WholeCell") {
+    return SampleInSphere(Rc);
+  }
   // 默认 / Membrane：细胞膜面
   return SampleOnSphere(Rc);
 }

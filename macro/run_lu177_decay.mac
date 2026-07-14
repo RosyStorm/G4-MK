@@ -16,11 +16,14 @@
 ###########################
 ### SETUP CONFIGURATION ###
 ###########################
-/mygeom/maxRange        100. um
+/mygeom/maxRange        1000. um
 /mygeom/material        G4_WATER
-/mygeom/cellRadius       11.2 um
-/mygeom/nucleusRadius     6.4 um
-/mygeom/siteRadius       0.274 um
+###/mygeom/cellRadius       11.2 um
+###/mygeom/nucleusRadius     6.4 um
+###/mygeom/siteRadius       0.324 um
+/mygeom/cellRadius       10.0 um
+/mygeom/nucleusRadius     8.1 um
+/mygeom/siteRadius       0.23 um
 ### 路线2 + 选择性 kill(Z≤2 出核即杀) — β⁻/γ 是 Z=0/0, 都按 Z≤2 处理
 ### → β⁻ 出核即丢, 不能跑完整射程; 想要跑完整射程需扩大 maxRange 到 1000 um
 /mygeom/killOutsideCell true
@@ -47,7 +50,8 @@
 ### 静止 Lu-177 离子在膜面 → G4RadioactiveDecay 自动衰变(β⁻ + γ + 反冲核)
 ### β⁻ 主谱末端 0.497 MeV; γ: 208 keV (10%), 113 keV (6.2%)
 /source/type lu177_decay
-/source/compartment Membrane
+### /source/compartment Membrane
+/source/compartment WholeCell
 
 /run/particle/applyCuts true e-
 /run/particle/applyCuts true gamma

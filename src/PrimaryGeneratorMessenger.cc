@@ -80,9 +80,11 @@ PrimaryGeneratorMessenger::PrimaryGeneratorMessenger(
   // —— 设置 Ac-225 分布区间命令 ——
   fCompartmentCmd = std::make_unique<G4UIcmdWithAString>("/source/compartment", this);
   fCompartmentCmd->SetGuidance(
-    "源分布区间(ac225)：Nucleus | Cytoplasm | Membrane | Extracellular");
+    "源分布区间(ac225): Nucleus | Cytoplasm | Membrane | Extracellular"
+    " | WholeCell (整个细胞均匀 = 核∪质∪膜, 即 Rc 球内)"
+    " | CellExceptNucleus (除核外均匀 = 质∪膜, 不含核)");
   fCompartmentCmd->SetParameterName("comp", false);
-  fCompartmentCmd->SetCandidates("Nucleus Cytoplasm Membrane Extracellular");
+  fCompartmentCmd->SetCandidates("Nucleus Cytoplasm Membrane Extracellular WholeCell CellExceptNucleus");
   fCompartmentCmd->SetDefaultValue("Membrane");
   fCompartmentCmd->AvailableForStates(G4State_PreInit, G4State_Idle);
 }

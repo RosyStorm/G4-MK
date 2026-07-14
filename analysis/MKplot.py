@@ -55,9 +55,9 @@ def params_args():
         description="Ac-225 vs Lu-177 存活曲线 + Ac-225 RBE 曲线 (Modified SMK)")
     ap.add_argument("--tree", default="single_events",
                     help="microtrack 模拟 ntuple 树名 (默认 single_events)")
-    ap.add_argument("--root-ac225", default="data/ac225_phy_decay_Membrane.root",
+    ap.add_argument("--root-ac225", default="data/ac225_phy_decay_WholeCell.root",
                     help="Ac-225 路线 2 产物 .root 路径")
-    ap.add_argument("--root-lu177", default="data/lu177_phy_decay_Membrane.root",
+    ap.add_argument("--root-lu177", default="data/lu177_phy_decay_WholeCell.root",
                     help="Lu-177 路线 2 产物 .root 路径")
     ap.add_argument("--alpha0", type=float, default=0.127,
                     help="参考 α₀ (默认 0.226; 也可从 --lq-csv 读)")
