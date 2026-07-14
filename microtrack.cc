@@ -54,6 +54,53 @@
 #include "ActionInitialization.hh"
 #include "DetectorConstruction.hh"
 #include "PhysicsList.hh"
+#include "RunAction.hh"
+
+#include <fstream>
+#include <regex>
+#include <string>
+
+//....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
+
+/// 从宏文件里抽出 /source/type xxx 与 /source/compartment yyy 设置。
+/// master 线程不能用 GetUserPrimaryGeneratorAction()（MT 模式下 PGA 在 worker 上），
+/// 必须从主程序拿 argv[1] 自己解析。兜底与 PrimaryGeneratorAction 默认一致。
+/// @param macroPath 宏文件路径
+static void ScanMacroForRunMeta(const std::string& macroPath)
+{
+  std::ifstream in(macroPath);
+  if (!in.is_open()) {
+    G4cout << "[RunMeta] 警告: 无法打开宏文件 " << macroPath
+           << " — 使用默认源类型 ac225_decay / 区室 Membrane" << G4endl;
+    return;
+  }
+
+  G4String srcType      = "ac225_decay";
+  G4String compartment  = "Membrane";
+  std::string line;
+  // /source/type <xxx>          xxx ∈ {proton, ac225, alpha, ac225_decay, lu177_decay}
+  // /source/compartment <yyy>   yyy ∈ {Nucleus, Cytoplasm, Membrane, Extracellular}
+  std::regex reType(R"(^\s*/source/type\s+(\S+))");
+  std::regex reComp(R"(^\s*/source/compartment\s+(\S+))");
+  std::smatch m;
+
+  while (std::getline(in, line)) {
+    // 跳过注释
+    if (line.empty() || line[0] == '#') continue;
+    if (std::regex_search(line, m, reType) && m.size() >= 2) {
+      srcType = m[1].str().c_str();
+    }
+    if (std::regex_search(line, m, reComp) && m.size() >= 2) {
+      compartment = m[1].str().c_str();
+    }
+  }
+  in.close();
+
+  RunAction::SetRunMeta(srcType, compartment);
+  G4cout << "[RunMeta] 从 " << macroPath
+         << " 解析到: sourceType=" << srcType
+         << ", compartment=" << compartment << G4endl;
+}
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
 
@@ -110,7 +157,9 @@ int main(int argc, char** argv)
     delete ui;
   }
   else {
-    // 批处理模式：执行给定的宏文件
+    // 批处理模式：先解析宏文件、把 source type / compartment 缓存到 RunAction
+    // （不然 master 线程的 BeginOfRunAction 拿不到正确的源类型，会写出错的文件名）。
+    ScanMacroForRunMeta(argv[1]);
     G4String command = "/control/execute ";
     G4String fileName = argv[1];
     UImanager->ApplyCommand(command + fileName);

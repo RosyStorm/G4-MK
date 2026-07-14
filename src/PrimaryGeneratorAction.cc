@@ -146,6 +146,36 @@ void PrimaryGeneratorAction::GeneratePrimaries(G4Event* anEvent)
              << "  (Ac-225 at rest → full chain 4α+β+γ+recoil)" << G4endl;
     }
   }
+  else if (fSourceType == "lu177_decay") {
+    // —— 路线2(任务8): Lu-177 β⁻ 衰变链 ———
+    // 静止 Lu-177 离子置于源点, G4RadioactiveDecay 自动跑 β⁻ (max 497 keV) +
+    // 208 keV (10%) / 113 keV (6.2%) 退激 γ + 反冲核。
+    // 几何保持 Ac-225 路线2 一致 (maxRange=100 µm) 以便直接对照 ———
+    // 但要注意: β⁻ 在水中射程 ~0.5 mm = 500 µm, 因此核外 β 会被选择性 kill (Z≤2)
+    // 截断, 即只能看到"核内+领域内"的 β 贡献。这是有意的: 第一版先确定核内
+    // 剂量学下限, 再考虑扩展 maxRange 到 1000 µm 跑完整射程版。
+    if (!fLu177) {
+      fLu177 = G4IonTable::GetIonTable()->GetIon(71, 177, 0.0);
+    }
+    if (!fLu177) {
+      G4ExceptionDescription msg;
+      msg << "Lu-177 离子(Z=71,A=177)无法创建 — 检查 PhysicsList 是否构造了离子。";
+      G4Exception("PrimaryGeneratorAction::GeneratePrimaries", "PGA003",
+                  FatalException, msg);
+    }
+    G4ThreeVector pos = SampleSourcePosition();
+    fParticleGun->SetParticleDefinition(fLu177);
+    fParticleGun->SetParticlePosition(pos);
+    fParticleGun->SetParticleEnergy(0.0);
+    fParticleGun->SetParticleMomentumDirection(G4ThreeVector(0., 0., 1.));
+
+    if (anEvent->GetEventID() < 5) {
+      G4cout << "[Lu177-decay] event " << anEvent->GetEventID()
+             << "  comp=" << fCompartment
+             << "  |pos|=" << pos.mag() / um << " um"
+             << "  (Lu-177 at rest → β⁻ + 208/113 keV γ + recoil)" << G4endl;
+    }
+  }
   else {
     // —— proton 模式：保持原有基线行为 ——
     fParticleGun->SetParticlePosition(G4ThreeVector(fX0, fY0, fZ0));

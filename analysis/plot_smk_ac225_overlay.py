@@ -38,10 +38,10 @@ import pandas as pd
 import matplotlib
 import matplotlib.pyplot as plt
 
-from msmk import ModifiedSMK   # ← SMK 模型类 (analysis/msmk.py)
-from mk import MK
-from smk import SMK
-from dsmk import DSMK
+from MKmodel.msmk import ModifiedSMK   # ← SMK 模型类 (analysis/msmk.py)
+from MKmodel.mk import MK
+from MKmodel.smk import SMK
+from MKmodel.dsmk import DSMK
 
 # ============================================================
 # 中文字体设置 (防止图像中文乱码)
@@ -123,7 +123,7 @@ def main():
                          "默认 actual 模式, 可换 lq_fit_xray_nominal.csv")
     ap.add_argument("--ac225", default="data/validation/Ac225_survival.csv",
                     help="Ac-225 实验存活数据 CSV (默认 data/validation/Ac225_survival.csv)")
-    ap.add_argument("--z0", type=float, default=40.0, help="饱和参数 z₀ [Gy] (analyze_mk.C 默认 66.0, Inaniwa HSG; PC-3 无公开值)")
+    ap.add_argument("--z0", type=float, default=66.0, help="饱和参数 z₀ [Gy] (analyze_mk.C 默认 66.0, Inaniwa HSG; PC-3 无公开值)")
     ap.add_argument("--dmax", type=float, default=None, help="存活曲线剂量上限 [Gy]; 默认取数据最大剂量的 1.05 倍")
     ap.add_argument("--outdir", default="result/validation/mks-fit",
                     help="输出目录 (默认 result/validation, 与 analyze_mk.C 一致)")

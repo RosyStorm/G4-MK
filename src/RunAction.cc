@@ -41,6 +41,22 @@
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
 
+// —— 静态缓存：源类型 / 区室，由 microtrack.cc 解析宏文件后注入 ——
+namespace {
+G4String gRunSourceType   = "ac225_decay";  // 兜底
+G4String gRunCompartment  = "Membrane";     // 兜底
+}
+
+void RunAction::SetRunMeta(G4String sourceType, G4String compartment)
+{
+  /// 由 microtrack.cc 在 ApplyCommand 之前调用，确保 master 线程也能拿到正确的
+  /// 源类型与区室（workder 线程 PGA 不在 master 上注册）。
+  gRunSourceType  = sourceType;
+  gRunCompartment = compartment;
+}
+
+//....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
+
 RunAction::RunAction()
 {
   /// 构造函数：创建分析管理器并定义全部直方图与 ntuple 的分箱方案。
@@ -241,14 +257,19 @@ void RunAction::BeginOfRunAction(const G4Run* /*aRun*/)
 
   // —— 根据源类型 + 区室动态生成文件名 ——
   // 统一放在 data/ 下, 按 {源类型}_{区室}.root 命名, 避免不同配置互相覆盖
-  const auto* pga = dynamic_cast<const PrimaryGeneratorAction*>(
-    G4RunManager::GetRunManager()->GetUserPrimaryGeneratorAction());
-  G4String sourceType = pga ? pga->GetSourceType() : "ac225_decay";
-  G4String compartment = pga ? pga->GetCompartment() : "Membrane";
+  // 注：master 线程上 GetUserPrimaryGeneratorAction() 返回 nullptr（MT 模式下
+  //     PGA 由 ActionInitialization::Build() 在 worker 线程里创建, master 只有 RunAction）。
+  //     因此这里直接用 microtrack.cc 从 argv[1] 解析后写入的静态缓存 gRunSourceType /
+  //     gRunCompartment，避免 worker 上 PGA 与 master 上文件名不一致。设兜底与默认源类型一致。
+  G4String sourceType  = gRunSourceType;
+  G4String compartment = gRunCompartment;
 
   G4String fileName;
   if (sourceType == "ac225_decay") {
     fileName = "data/ac225_phy_decay_" + compartment + ".root";
+  }
+  else if (sourceType == "lu177_decay") {
+    fileName = "data/lu177_phy_decay_" + compartment + ".root";
   }
   else if (sourceType == "ac225") {
     fileName = "data/4alpha_" + compartment + ".root";

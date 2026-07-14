@@ -169,6 +169,37 @@ class ModifiedSMK:
         bracket = np.clip(bracket, 0.0, None)
         return lq * bracket
 
+    def plot_survival(self, D=None, ax=None, mode="normal", **kwargs):
+        """
+        绘制存活曲线 S(D) vs D (Gy)。
+
+        :param D: 剂量数组 (Gy), 默认 np.linspace(0, 10, 200)
+        :param ax: matplotlib Axes 对象, 默认 plt.gca()
+        :param kwargs: 传给 ax.plot 的参数 (color/label/linestyle 等)
+        :return: ax
+        """
+        import matplotlib.pyplot as plt
+
+        if D is None:
+            D = np.linspace(0, 10, 200)
+        S = self.survival(D)
+
+        fig, ax = plt.subplots() if ax is None else (None, ax)
+        if fig is None:
+            fig = ax.figure
+
+        if ax is None:
+            ax = plt.gca()
+        ax.plot(D, S, **kwargs)
+        if mode == "log":
+            ax.set_yscale("log")
+        ax.set_xlabel("Dose D (Gy)")
+        ax.set_ylabel("Survival fraction S(D)")
+        ax.legend()
+        ax.grid(True, which="both", ls="--", lw=0.5)
+        ax.set_title("Modified SMK Survival Curve")
+        return fig, ax
+
     # ============================================================
     # 取值辅助
     # ============================================================

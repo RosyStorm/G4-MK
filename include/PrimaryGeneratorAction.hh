@@ -94,7 +94,8 @@ class PrimaryGeneratorAction : public G4VUserPrimaryGeneratorAction
     G4ParticleDefinition* fParticle = nullptr;   // 质子（基线对比用）
     G4ParticleDefinition* fAlpha = nullptr;      // α 粒子
     G4ParticleDefinition* fAc225 = nullptr;      // Ac-225 离子（路线2 完整衰变链，任务7.1）
-    G4String fSourceType = "ac225";              // proton | ac225 | alpha | ac225_decay
+    G4ParticleDefinition* fLu177 = nullptr;      // Lu-177 离子（路线2 β⁻ 衰变链，任务8）
+    G4String fSourceType = "ac225";              // proton | ac225 | alpha | ac225_decay | lu177_decay
     G4String fCompartment = "Membrane";          // Nucleus | Cytoplasm | Membrane | Extracellular
     G4double fX0 = 0.;                           // proton 模式源点 X 坐标
     G4double fY0 = 0.;                           // proton 模式源点 Y 坐标

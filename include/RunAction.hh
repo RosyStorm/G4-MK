@@ -51,6 +51,13 @@ class RunAction : public G4UserRunAction
     // ===== Geant4 强制重载接口 =====
     void BeginOfRunAction(const G4Run*) override;  // 运行开始：打开输出文件
     void EndOfRunAction(const G4Run*) override;    // 运行结束：打印统计量并写出文件
+
+    // ===== 静态接口（由 microtrack.cc 在 ApplyCommand 之前从宏文件里抽出后注入）=====
+    // 背景：master 线程上 GetUserPrimaryGeneratorAction() 返回 nullptr（MT 模式下
+    //       PrimaryGeneratorAction 由 Build() 在 worker 线程里创建）。
+    //       因此 BeginOfRunAction 不能依赖 PGA 拿源类型，必须靠主线程从 argv[1] 解析宏
+    //       文件静态注入。同源类型由 microtrack.cc 在 ApplyCommand() 之前一次性写入。
+    static void SetRunMeta(G4String sourceType, G4String compartment);
 };
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......

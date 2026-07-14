@@ -70,9 +70,10 @@ PrimaryGeneratorMessenger::PrimaryGeneratorMessenger(
   fSourceTypeCmd->SetGuidance(
     "源类型：proton（基线）| ac225（Ac-225 alpha，分布区间由 /source/compartment 设定）"
     " | alpha（单能 alpha，能量由 /gun/energy 设定）"
-    " | ac225_decay（路线2：静止 Ac-225 完整衰变链 4α+β+γ+反冲，任务7.1）");
+    " | ac225_decay（路线2：静止 Ac-225 完整衰变链 4α+β+γ+反冲，任务7.1）"
+    " | lu177_decay（路线2：静止 Lu-177 β⁻ + 208/113 keV γ + 反冲，任务8）");
   fSourceTypeCmd->SetParameterName("type", false);
-  fSourceTypeCmd->SetCandidates("proton ac225 alpha ac225_decay");
+  fSourceTypeCmd->SetCandidates("proton ac225 alpha ac225_decay lu177_decay");
   fSourceTypeCmd->SetDefaultValue("ac225");
   fSourceTypeCmd->AvailableForStates(G4State_PreInit, G4State_Idle);
 
