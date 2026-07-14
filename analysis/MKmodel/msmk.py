@@ -1,251 +1,131 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-smk.py — 修正 SMK (Stochastic Microdosimetric Kinetic) 模型类
+msmk.py — 修正 SMK (ModifiedSMK, Inaniwa & Kanematsu 2018 闭式) 模型类
 
-参考: Inaniwa & Kanematsu, Phys. Med. Biol. 63 (2018) 095011 (修正 SMK 闭式)
-链路与 analysis/plot_smk_ac225_overlay.py、analyze_mk.C 完全一致。
+继承自 MK 基类。
+参考: Inaniwa & Kanematsu, Phys. Med. Biol. 63 (2018) 095011。
 
-模型 (Inaniwa 式24, 闭式):
-    S(D) = exp(-α_S·D - β_S·D²) · [1 + (D·z̄_{n,D}/2)·((α_S+2β_S·D)² - 2β_S)]
-其中:
-    α_S = α₀ + β₀·z̄*_{d,D}                 (式15)
-    β_S = β₀·z̄*_{d,D} / z̄_{d,D}             (式16)
-    z*_d = z₀·(1 - e^{-(z_d/z₀)²})          (式1, 饱和比能, 无 sqrt)
-微剂量学量 (单事件, 仅命中事件 hitFlag==1, 域级带重要性权 w):
-    z̄_{d,F} = Σ(w·z_d)/Σw                   (式10, 域频率均)
-    z̄_{d,D} = Σ(w·z_d²)/Σ(w·z_d)            (式11, 域剂量均)
-    z̄*_{d,D}= Σ(w·z*²)/Σ(w·z_d)             (式12, 域饱和剂量均)
-    z̄_{n,D} = Σz_n²/Σz_n                    (核剂量均, 无权)
+关键公式:
+    α_S = α₀ + β₀ · z̄*_{d,D}                       (式 15, 用近似 z̄*_{d,F}/z̄_{d,F} ≈ 1)
+    β_S = β₀ · z̄*_{d,D} / z̄_{d,D}                 (式 16)
+    S(D) = exp(-α_S·D - β_S·D²) · {1 + (D·z̄_{n,D}/2)·((α_S+2β_S·D)² - 2β_S)}   (式 24, 闭式)
 
 用法:
-    # 1) 直接从 microtrack.root 构建模型(自动算微剂量学量)
-    from analysis.smk import ModifiedSMK
     smk = ModifiedSMK.from_root("data/microtrack.root", alpha0=0.174, beta0=0.0568, z0=66.0)
-    print(smk)                       # → α_S, β_S 等
+    print(smk)
     S = smk.survival(np.linspace(0, 10, 200))
-
-    # 2) 或已有微剂量学量, 直接构造
-    smk = ModifiedSMK(alpha0=0.174, beta0=0.0568, z0=66.0,
-                      z_d_D=54.1, zs_d_D=32.1, z_n_D=0.107)
-    smk.alpha_S, smk.beta_S          # SMK 系数
 """
 
 import numpy as np
 
+from .mk import MK
 
-class ModifiedSMK:
+
+class ModifiedSMK(MK):
     """
-    修正 SMK 模型 (Inaniwa 2018 闭式 式24)。
-
-    构造后即可:
-        - 读 .alpha_S / .beta_S / .z_n_D 等属性
-        - 调 .survival(D) 得存活曲线
-        - 调 .microdosimetry() / .summary() 取完整结果
+    修正 SMK 模型 (Inaniwa 2018 闭式 式 24)。
     """
 
-    # ============================================================
-    # 构造
-    # ============================================================
+    # ----- 构造 -----
     def __init__(self, alpha0, beta0, z0, z_d_D, zs_d_D, z_n_D,
                  z_d_F=None, z_n_F=None):
         """
-        :param alpha0:  参考线性项 α₀ (Gy⁻¹, 一般 X 射线 LQ 拟合)
-        :param beta0:   参考二次项 β₀ (Gy⁻²)
+        :param alpha0:  参考 α₀ (Gy⁻¹)
+        :param beta0:   参考 β₀ (Gy⁻²)
         :param z0:      饱和参数 z₀ (Gy)
-        :param z_d_D:   域剂量均 z̄_{d,D} (Gy)
+        :param z_d_D:   域剂量均 z̄_{d,D} (Gy), 必须 > 0
         :param zs_d_D:  域饱和剂量均 z̄*_{d,D} (Gy)
         :param z_n_D:   核剂量均 z̄_{n,D} (Gy)
-        :param z_d_F:   域频率均 z̄_{d,F} (Gy, 可选, 仅记录/诊断)
-        :param z_n_F:   核频率均 z̄_{n,F} (Gy, 可选, 仅记录/诊断)
-
-        注: z_d_D 必须 > 0 (β_S 分母); 否则 ValueError。
+        :param z_d_F:   域频率均 z̄_{d,F} (Gy, 可选)
+        :param z_n_F:   核频率均 z̄_{n,F} (Gy, 可选)
+        :raises ValueError: z_d_D ≤ 0
         """
         if z_d_D <= 0:
             raise ValueError(f"z_d_D 必须 > 0 (β_S 分母), 当前 {z_d_D}")
 
-        # —— 细胞系 / 饱和参数 ——
-        self.alpha0 = float(alpha0)        # α₀ (Gy⁻¹)
-        self.beta0 = float(beta0)          # β₀ (Gy⁻²)
-        self.z0 = float(z0)                # z₀ (Gy)
+        # MSMK 专属字段
+        self.z0     = float(z0)
+        self.zs_d_D = float(zs_d_D)
 
-        # —— 单事件微剂量学量 ——
-        self.z_d_F = None if z_d_F is None else float(z_d_F)   # z̄_{d,F}
-        self.z_d_D = float(z_d_D)                               # z̄_{d,D}
-        self.zs_d_D = float(zs_d_D)                             # z̄*_{d,D}
-        self.z_n_F = None if z_n_F is None else float(z_n_F)    # z̄_{n,F}
-        self.z_n_D = float(z_n_D)                               # z̄_{n,D}
+        super().__init__(alpha0, beta0, z_d_D, z_n_D,
+                         z_d_F=z_d_F, z_n_F=z_n_F)
 
-        # —— SMK 系数 (式15-16) ——
-        self.alpha_S = self.alpha0 + self.beta0 * self.zs_d_D       # α_S (Gy⁻¹)
-        self.beta_S = self.beta0 * self.zs_d_D / self.z_d_D         # β_S (Gy⁻²)
-
-        # —— 统计来源(可选, from_root 时填) ——
-        self.n_hits = None       # 命中事件数
-        self.n_entries = None    # ntuple 总条目数
-
-    # ============================================================
-    # 静态: 饱和修正 (式1)
-    # ============================================================
-    @staticmethod
-    def saturation(z_d, z0):
+    # ----- 子类覆写: 系数公式 -----
+    def _compute_alpha_beta(self):
         """
-        饱和比能 z*_d = z₀·(1 - e^{-(z_d/z₀)²})  (式1, 无 sqrt, 标量或数组)
+        Inaniwa 2018 式 (15)(16):
+            α_S = α₀ + β₀ · z̄*_{d,D}
+            β_S = β₀ · z̄*_{d,D} / z̄_{d,D}
         """
-        z_d = np.asarray(z_d, dtype=float)
-        return z0 * np.sqrt((1.0 - np.exp(-(z_d / z0) ** 2)))
+        self.alpha_S = self.alpha0 + self.beta0 * self.zs_d_D
+        self.beta_S  = self.beta0 * self.zs_d_D / self.z_d_D
 
-    # ============================================================
-    # 备选构造: 从 microtrack.root events ntuple
-    # ============================================================
-    @classmethod
-    def from_root(cls, root_path, tree_name, alpha0, beta0, z0):
-        """
-        从 microtrack.root 的 events ntuple 算微剂量学量并构建模型。
-        仅用命中事件 (hitFlag==1), 与 analyze_mk.C / plot_smk_ac225_overlay.py 一致。
-
-        :param root_path: microtrack.root 路径 (含 events ntuple)
-        :param alpha0, beta0, z0: 细胞系参数 + 饱和参数
-        :return: ModifiedSMK 实例 (附带 .n_hits/.n_entries)
-        """
-        import ROOT  # 延迟导入: 避免 import smk 时强依赖 PyROOT
-
-        rdf = ROOT.RDataFrame(str(tree_name), str(root_path))
-        n_entries = rdf.Count().GetValue()
-        if n_entries == 0:
-            raise ValueError(f"{root_path} 内 events ntuple 为空")
-
-        hits = rdf.Filter("hitFlag==1")
-        n_hits = hits.Count().GetValue()
-        if n_hits == 0:
-            raise ValueError(f"{root_path} 无命中事件 (hitFlag==1), 无法算微剂量学量")
-
-        cols = hits.AsNumpy(["z_d_Gy", "z_n_Gy", "weight"])
-        z_d = np.asarray(cols["z_d_Gy"], dtype=float)
-        z_n = np.asarray(cols["z_n_Gy"], dtype=float)
-        w = np.asarray(cols["weight"], dtype=float)
-
-        # —— 域级(带权) ——
-        Sw = w.sum()                       # Σw
-        Swz = (w * z_d).sum()              # Σ(w·z_d)
-        Swzz = (w * z_d * z_d).sum()       # Σ(w·z_d²)
-        if Sw <= 0 or Swz <= 0:
-            raise ValueError("域级求和异常 (Σw 或 Σ(w·z_d) ≤ 0)")
-        z_d_F = Swz / Sw                   # 式10
-        z_d_D = Swzz / Swz                 # 式11
-        zs = cls.saturation(z_d, z0)       # 式1
-        zs_d_D = (w * zs * zs).sum() / Swz  # 式12
-
-        # —— 核级(无权) ——
-        Szn = z_n.sum()                    # Σz_n
-        if Szn <= 0:
-            raise ValueError("核级求和异常 (Σz_n ≤ 0)")
-        z_n_F = Szn / n_hits               # z̄_{n,F}
-        z_n_D = (z_n * z_n).sum() / Szn    # z̄_{n,D}
-
-        obj = cls(alpha0, beta0, z0, z_d_D, zs_d_D, z_n_D,
-                  z_d_F=z_d_F, z_n_F=z_n_F)
-        obj.n_hits = int(n_hits)
-        obj.n_entries = int(n_entries)
-        return obj
-
-    # ============================================================
-    # 存活曲线 (式24)
-    # ============================================================
+    # ----- 子类覆写: 存活曲线 (闭式 LQ + z_n bracket 修正) -----
     def survival(self, D):
         """
-        修正 SMK 存活分数 S(D) (式24):
+        Inaniwa 2018 式 (24) 闭式:
             S(D) = exp(-α_S·D - β_S·D²) · [1 + (D·z̄_{n,D}/2)·((α_S+2β_S·D)² - 2β_S)]
-        方括号为 z_n 随机性修正; 低 LET 时 z̄_{n,D}→小, 退化为 LQ。
-        bracket 裁剪到 ≥0, 防负存活 (与 analyze_mk.C 一致)。
-
-        :param D: 剂量 (Gy), 标量或数组
-        :return: 存活分数 (无量纲, 非负, 与 D 同形)
+        bracket 裁剪 ≥0, 防数值噪声导致负存活。
         """
         D = np.asarray(D, dtype=float)
         lq = np.exp(-self.alpha_S * D - self.beta_S * D ** 2)
-        bracket = 1.0 + (D * self.z_n_D / 2.0) * \
-                  ((self.alpha_S + 2.0 * self.beta_S * D) ** 2 - 2.0 * self.beta_S)
+        bracket = (1.0
+                   + (D * self.z_n_D / 2.0)
+                     * ((self.alpha_S + 2.0 * self.beta_S * D) ** 2
+                        - 2.0 * self.beta_S))
         bracket = np.clip(bracket, 0.0, None)
         return lq * bracket
 
-    def plot_survival(self, D=None, ax=None, mode="normal", **kwargs):
-        """
-        绘制存活曲线 S(D) vs D (Gy)。
+    # ----- from_root 工厂 -----
+    @classmethod
+    def from_root(cls, root_path, tree_name, alpha0, beta0, z0):
+        from .mk import (load_microdosimetry_from_root,
+                          compute_basic_microdosimetry)
 
-        :param D: 剂量数组 (Gy), 默认 np.linspace(0, 10, 200)
-        :param ax: matplotlib Axes 对象, 默认 plt.gca()
-        :param kwargs: 传给 ax.plot 的参数 (color/label/linestyle 等)
-        :return: ax
-        """
-        import matplotlib.pyplot as plt
+        z_d, z_n, w, n_hits, n_entries = load_microdosimetry_from_root(
+            root_path, tree_name)
+        z_d_F, z_d_D, z_n_F, z_n_D = compute_basic_microdosimetry(
+            z_d, z_n, w, n_hits)
+        zs_d_D = (w * cls.saturation(z_d, z0) * cls.saturation(z_d, z0)).sum() \
+                 / (w * z_d).sum()
 
-        if D is None:
-            D = np.linspace(0, 10, 200)
-        S = self.survival(D)
+        obj = cls(alpha0, beta0, z0, z_d_D, zs_d_D, z_n_D,
+                  z_d_F=z_d_F, z_n_F=z_n_F)
+        obj.n_hits    = n_hits
+        obj.n_entries = n_entries
+        return obj
 
-        fig, ax = plt.subplots() if ax is None else (None, ax)
-        if fig is None:
-            fig = ax.figure
-
-        if ax is None:
-            ax = plt.gca()
-        ax.plot(D, S, **kwargs)
-        if mode == "log":
-            ax.set_yscale("log")
-        ax.set_xlabel("Dose D (Gy)")
-        ax.set_ylabel("Survival fraction S(D)")
-        ax.legend()
-        ax.grid(True, which="both", ls="--", lw=0.5)
-        ax.set_title("Modified SMK Survival Curve")
-        return fig, ax
-
-    # ============================================================
-    # 取值辅助
-    # ============================================================
-    def coefficients(self):
-        """返回 SMK 系数 (α_S, β_S)"""
-        return self.alpha_S, self.beta_S
-
-    def microdosimetry(self):
-        """返回单事件微剂量学量 dict (z_d_F/z_d_D/zs_d_D/z_n_F/z_n_D)"""
-        return {
-            "z_d_F": self.z_d_F, "z_d_D": self.z_d_D, "zs_d_D": self.zs_d_D,
-            "z_n_F": self.z_n_F, "z_n_D": self.z_n_D,
-            "n_hits": self.n_hits, "n_entries": self.n_entries,
-        }
-
+    # ----- 扩展 summary / __repr__ (含饱和项) -----
     def summary(self):
-        """
-        返回多行字符串: 细胞系参数 + 微剂量学量 + SMK 系数。
-        便于脚本打印或写摘要文件。
-        """
         lines = [
             f"α₀ = {self.alpha0:.6g} Gy⁻¹   β₀ = {self.beta0:.6g} Gy⁻²   z₀ = {self.z0:.4g} Gy",
-            f"z̄_{{d,F}} = {self._fmt(self.z_d_F)} Gy   z̄_{{d,D}} = {self.z_d_D:.6g} Gy",
-            f"z̄*_{{d,D}} = {self.zs_d_D:.6g} Gy   (饱和)",
-            f"z̄_{{n,F}} = {self._fmt(self.z_n_F)} Gy   z̄_{{n,D}} = {self.z_n_D:.6g} Gy",
-            f"α_S = α₀ + β₀·z̄*_{{d,D}}     = {self.alpha_S:.6g} Gy⁻¹",
+            f"z̄_{{d,F}} = {self._fmt(self.z_d_F)} Gy   z̄_{{d,D}} = {self._fmt(self.z_d_D)} Gy",
+            f"z̄*_{{d,D}} = {self._fmt(self.zs_d_D)} Gy   (饱和)",
+            f"z̄_{{n,F}} = {self._fmt(self.z_n_F)} Gy   z̄_{{n,D}} = {self._fmt(self.z_n_D)} Gy",
+            f"α_S = α₀ + β₀·z̄*_{{d,D}} = {self.alpha_S:.6g} Gy⁻¹",
             f"β_S = β₀·z̄*_{{d,D}}/z̄_{{d,D}} = {self.beta_S:.6g} Gy⁻²",
         ]
         return "\n".join(lines)
 
-    @staticmethod
-    def _fmt(x):
-        return f"{x:.6g}" if x is not None else "N/A"
+    def microdosimetry(self):
+        d = super().microdosimetry()
+        d.update({"z0": self.z0, "zs_d_D": self.zs_d_D})
+        return d
 
     def __repr__(self):
-        return (f"ModifiedSMK(α₀={self.alpha0:.4f}, β₀={self.beta0:.4f}, z₀={self.z0:.2f} → "
+        return (f"ModifiedSMK(α₀={self.alpha0:.4f}, β₀={self.beta0:.4f}, "
+                f"z₀={self.z0:.2f} → "
                 f"α_S={self.alpha_S:.4f}, β_S={self.beta_S:.5f}; "
-                f"z̄*_{{d,D}}={self.zs_d_D:.3f}, z̄_{{n,D}}={self.z_n_D:.4g})")
+                f"z̄*_{{d,D}}={self._fmt(self.zs_d_D)}, "
+                f"z̄_{{n,D}}={self._fmt(self.z_n_D)})")
 
 
 # ============================================================
-# 命令行自检 (不依赖 root 文件, 用示例微剂量学量验证模型)
+# 命令行自检
 # ============================================================
 if __name__ == "__main__":
-    print("== ModifiedSMK 自检 (示例微剂量学量) ==")
-    # 用 HSG 量级示例值
+    print("== ModifiedSMK 自检 (HSG 量级示例微剂量学量) ==")
     smk = ModifiedSMK(alpha0=0.174, beta0=0.0568, z0=66.0,
                       z_d_D=54.1, zs_d_D=32.1, z_n_D=0.107)
     print(smk)
