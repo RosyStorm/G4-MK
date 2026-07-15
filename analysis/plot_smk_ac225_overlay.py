@@ -115,7 +115,7 @@ def main():
     ap = argparse.ArgumentParser(
         description="修正 SMK 存活曲线 (α₀/β₀ 取自 X 射线 LQ 拟合) × Ac-225 实验数据叠加图"
     )
-    ap.add_argument("--root", default="data/ac225_phy_decay_Membrane.root",
+    ap.add_argument("--root", default="data/PC-4alpha-decay/ac225_phy_decay_Membrane_PC.root",
                     help="microtrack 模拟 ntuple 路径 (默认 data/ac225_phy_decay_Membrane.root)")
     ap.add_argument("--tree", default="single_events", help="microtrack 模拟 ntuple 树名 (默认 events)")
     ap.add_argument("--lq-csv", default="result/validation/lq_fit_xray_actual.csv",
@@ -151,7 +151,7 @@ def main():
     # —— 1. 读 α₀, β₀ (来自 X 射线 LQ 拟合) ——
     alpha0, beta0, lq_mode = read_lq_params(lq_path)
     rn = 6.4
-    rd = 0.274
+    rd = 0.324
     z0 = get_z0(beta0, rn, rd)
     print("=" * 64)
     print("[1] 参考辐射敏感性 (来自 fit_lq_xray.py)")
