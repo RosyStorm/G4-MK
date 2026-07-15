@@ -35,6 +35,7 @@
 #include "PrimaryGeneratorAction.hh"
 #include "RunAction.hh"
 #include "SteppingAction.hh"
+#include "TrackingAction.hh"
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
 
@@ -63,6 +64,9 @@ void ActionInitialization::Build() const
   // —— 事件级动作（事件内累积量、事件末分析）——
   auto* eventAction = new EventAction;
   SetUserAction(eventAction);
+
+  // —— 径迹级动作（任务X: 每条 track 启动时立即分类, 防 α 链衍生被拆）——
+  SetUserAction(new TrackingAction(eventAction));
 
   // —— 步级动作（每步能量沉积、粒子杀死判定），依赖事件级动作 ——
   SetUserAction(new SteppingAction(eventAction));

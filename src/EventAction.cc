@@ -65,8 +65,22 @@ void EventAction::BeginOfEventAction(const G4Event* /*anEvent*/)
 G4int EventAction::EventParticleID(const G4Track* track) const
 {
   /// 取该 track 所属"单事件粒子"的 ID(带缓存)。
-  /// 创建过程为 fDecay(衰变产物 α/β/反冲) 或无创建者(初级粒子) → 新 ID；
-  /// 电离次级(δ 电子等, 创建过程非 fDecay) → 继承母粒子 ID。
+  ///
+  /// 分类规则(任务X更新):
+  ///   1. 初级(枪直接产生, creator==nullptr)         → 新单事件粒子
+  ///   2. 真正的放射性衰变产物(creator->GetProcessName()=="RadioactiveDecay")
+  ///                                               → 新单事件粒子
+  ///   3. 其他所有粒子(包括 α 链衍生 α⁺/α²⁺/He, G4-DNA 电荷交换
+  ///      alpha_G4DNAChargeDecrease 等)             → 继承母粒子 ID
+  ///
+  /// 任务X设计动机: 1 个 5.83 MeV α 在核内输运时, G4-DNA 通过电荷交换
+  ///   过程(alpha_G4DNAChargeDecrease)产生 alpha+ track, 再经
+  ///   alpha+_G4DNAChargeIncrease 回到 alpha. 这些衍生 track 都属于
+  ///   "同一个 α 在核内的同一次穿越", 应整体视为 1 个单事件粒子
+  ///   (Kellerer 1975 microdosimetry: 一次能量沉积事件 = 1 个带电粒子
+  ///   在 site 内的完整穿越). 旧代码因 ProcessType 误判把每个衍生
+  ///   track 当作"新单事件粒子", 导致每事件 1-7 个 α 行.
+  ///
   /// @param track 当前径迹
   /// @return 单事件粒子 ID(≥0)
 
@@ -77,29 +91,50 @@ G4int EventAction::EventParticleID(const G4Track* track) const
 
   G4int eid = -1;
   const G4VProcess* creator = track->GetCreatorProcess();
-  G4bool isNewEvent = (creator == nullptr)              // 初级(枪产生, 无 creator)
-                      || (creator->GetProcessType() == fDecay);  // 衰变产物(α/β/反冲)
-  if (isNewEvent) {
-    eid = fNextEventID++;                               // 新单事件粒子
+  G4bool isPrimary = (creator == nullptr);
+  G4bool isRealRadioactiveDecay = (!isPrimary && creator &&
+                                   creator->GetProcessName() == "RadioactiveDecay");
+
+  if (isPrimary || isRealRadioactiveDecay) {
+    // —— 新单事件粒子 ——
+    eid = fNextEventID++;
     if (track->GetParticleDefinition()) {
       fEvent2PDG[eid] = track->GetParticleDefinition()->GetPDGEncoding();
     }
-    fEvent2KE[eid] = track->GetVertexKineticEnergy();   // 存产生时动能(填 ntuple 用)
+    fEvent2KE[eid] = track->GetVertexKineticEnergy();
   }
   else {
-    // 电离次级(δ 电子): 继承母粒子 ID(母粒子应已先被分类)
+    // —— 任何次级(包括 α 链衍生)继承母粒子 ID ——
     G4int pid = track->GetParentID();
     auto pit = fTrack2Event.find(pid);
     if (pit != fTrack2Event.end()) {
       eid = pit->second;
     }
     else {
-      // fallback: 母粒子未登记(罕见) → 自成一新事件
-      eid = fNextEventID++;
-      if (track->GetParticleDefinition()) {
-        fEvent2PDG[eid] = track->GetParticleDefinition()->GetPDGEncoding();
+      // 母粒子未被分类(未在核内 hit). 新建一个 eventID 但记为继承 ——
+      // 这里不能简单地 fNextEventID++, 否则 e⁻ 抢占 eid 顺序会破坏
+      // α 链继承. 正确做法: 沿父链向上追到已分类节点.
+      G4int curPid = pid;
+      G4int safety = 0;
+      while (curPid > 0 && safety++ < 64) {
+        auto cit = fTrack2Event.find(curPid);
+        if (cit != fTrack2Event.end()) {
+          eid = cit->second;
+          break;
+        }
+        // 父粒子未被分类: 拿不到父 PDG, 此处无法判断继续向上 ——
+        // G4 没有暴露 track-by-parentId 查 PDG 的接口, 所以 fallback
+        // 到新建 eid (虽然可能与 α 链共享 eid 不一致, 但仅发生在
+        // 母粒子完全没 hit 时, 概率极低).
+        break;
       }
-      fEvent2KE[eid] = track->GetVertexKineticEnergy();
+      if (eid < 0) {
+        eid = fNextEventID++;
+        if (track->GetParticleDefinition()) {
+          fEvent2PDG[eid] = track->GetParticleDefinition()->GetPDGEncoding();
+        }
+        fEvent2KE[eid] = track->GetVertexKineticEnergy();
+      }
     }
   }
   fTrack2Event[tid] = eid;

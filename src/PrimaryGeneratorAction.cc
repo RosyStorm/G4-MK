@@ -146,6 +146,71 @@ void PrimaryGeneratorAction::GeneratePrimaries(G4Event* anEvent)
              << "  (Ac-225 at rest → full chain 4α+β+γ+recoil)" << G4endl;
     }
   }
+  else if (fSourceType == "ac225_single_decay") {
+    // —— 路线2 (任务X): Ac-225 单次 α 衰变 ——
+    // 静止 Ac-225 → Fr-221 (反冲核) + α (5.83 MeV), 动量守恒, 各向同性
+    // 区别于 ac225_decay (跑完整 4α 链 + β + γ), 本分支只模拟第一次 α 衰变, 不跑后续链
+    // 用同一事件两次 GeneratePrimaryVertex 发两个初级粒子: α + Fr-221 反冲核
+    // 延迟取 Fr-221 离子定义(构造函数里取会因 GenericIon 未就绪而失败, 参考 fAc225/fLu177)
+    if (!fFr221) {
+      fFr221 = G4IonTable::GetIonTable()->GetIon(87, 221, 0.0);
+    }
+    if (!fFr221) {
+      G4ExceptionDescription msg;
+      msg << "Fr-221 离子(Z=87,A=221)无法创建 — 检查 PhysicsList 是否构造了离子。";
+      G4Exception("PrimaryGeneratorAction::GeneratePrimaries", "PGA004",
+                  FatalException, msg);
+    }
+    // 注: Fr-221 在 G4RadioactiveDecay 内部数据库里有 4.8 min 半衰期,
+    //   SetPDGStable(true) 不能阻止 G4RadioactiveDecay 触发它 (RDM 查的是
+    //   自己的核素库, 不读 stable flag). 阻止 Fr-221 衰变需要在 .mac 里
+    //   /process/had/rdm/nucleusLimits 排除 Z>=87 (Ac-225 也不参与,
+    //   因为本模式已经手动 double-Generate 了 α+Fr-221, 不再走 RDM).
+    if (!fAlpha) {  // 兜底, 构造里已取, 但分支首跑前再确认一次也无害
+      fAlpha = G4ParticleTable::GetParticleTable()->FindParticle("alpha");
+    }
+
+    // 抽样: 共用位置 + 互相反平行方向 (动量守恒)
+    G4ThreeVector pos = SampleSourcePosition();
+    G4ThreeVector dirAlpha = SampleIsotropicDirection();   // α 方向各向同性
+    G4ThreeVector dirFr    = -dirAlpha;                    // Fr-221 反平行
+
+    // α 动能: 5.83 MeV (NNDC Ac-225 α 衰变公认值)
+    const G4double ekinAlpha = 5.83 * MeV;
+    // Fr-221 反冲动能: 动量守恒 T_Fr = T_α × m_α/M_Fr ≈ 5.83 × 4/221 ≈ 105.5 keV
+    // 用动量公式显式算 (避免硬编码, 自洽于 G4IonTable 给出的质量):
+    const G4double mAlpha = fAlpha->GetPDGMass();
+    const G4double mFr    = fFr221->GetPDGMass();
+    const G4double pAlpha = std::sqrt(ekinAlpha * (ekinAlpha + 2.0 * mAlpha));
+    const G4double ekinFr = pAlpha * pAlpha / (2.0 * mFr);
+
+    // 第一个顶点: α
+    fParticleGun->SetParticleDefinition(fAlpha);
+    fParticleGun->SetParticleEnergy(ekinAlpha);
+    fParticleGun->SetParticlePosition(pos);
+    fParticleGun->SetParticleMomentumDirection(dirAlpha);
+    fParticleGun->GeneratePrimaryVertex(anEvent);   // 第一次: α 顶点
+
+    // 第二个顶点: Fr-221 反冲核 (同一事件)
+    fParticleGun->SetParticleDefinition(fFr221);
+    fParticleGun->SetParticleEnergy(ekinFr);
+    fParticleGun->SetParticlePosition(pos);
+    fParticleGun->SetParticleMomentumDirection(dirFr);
+    fParticleGun->GeneratePrimaryVertex(anEvent);   // 第二次: Fr-221 顶点
+
+    // 诊断: 前 5 事件打印
+    if (anEvent->GetEventID() < 5) {
+      G4cout << "[Ac225-single-decay] event " << anEvent->GetEventID()
+             << "  comp=" << fCompartment
+             << "  |pos|=" << pos.mag() / um << " um"
+             << "  E_α=" << ekinAlpha / MeV << " MeV"
+             << "  E_Fr=" << ekinFr / keV << " keV"
+             << "  (Ac-225 → Fr-221 + α, p conserved, isotropic)"
+             << G4endl;
+    }
+
+    return;  // 关键: 已在分支内调两次 GeneratePrimaryVertex, 跳过末尾公共调用的第 3 次
+  }
   else if (fSourceType == "lu177_decay") {
     // —— 路线2(任务8): Lu-177 β⁻ 衰变链 ———
     // 静止 Lu-177 离子置于源点, G4RadioactiveDecay 自动跑 β⁻ (max 497 keV) +

@@ -50,8 +50,12 @@ class G4ParticleDefinition;
 ///   - ac225 ：Ac-225 α 源，从指定区室（/source/compartment）均匀随机点各向同性
 ///             发射一个 α，能量按 Ac-225 衰变链抽样（一个 α = 一个事件，契合 MK 单事件定义）
 ///   - alpha ：单能 α 验证模式（任务3.1），能量由 /gun/energy 给
+///   - ac225_decay       ：路线2 完整 4α+β+γ+反冲链 (G4RadioactiveDecay)
+///   - ac225_single_decay：路线2 单次 Ac-225 → Fr-221 + α (5.83 MeV), 动量守恒反平行,
+///                         不跑后续链
+///   - lu177_decay       ：路线2 静止 Lu-177 β⁻ + 208/113 keV γ + 反冲
 ///
-/// 区室取值：Nucleus(核内) | Cytoplasm(质内) | Membrane(膜面,默认) | Extracellular(胞外)
+/// 区室取值：Nucleus(核内) | Cytoplasm(质内) | Membrane(膜面,默认) | Extracellular(胞外) | WholeCell | CellExceptNucleus
 class PrimaryGeneratorAction : public G4VUserPrimaryGeneratorAction
 {
   public:
@@ -95,7 +99,8 @@ class PrimaryGeneratorAction : public G4VUserPrimaryGeneratorAction
     G4ParticleDefinition* fAlpha = nullptr;      // α 粒子
     G4ParticleDefinition* fAc225 = nullptr;      // Ac-225 离子（路线2 完整衰变链，任务7.1）
     G4ParticleDefinition* fLu177 = nullptr;      // Lu-177 离子（路线2 β⁻ 衰变链，任务8）
-    G4String fSourceType = "ac225";              // proton | ac225 | alpha | ac225_decay | lu177_decay
+    G4ParticleDefinition* fFr221 = nullptr;      // Fr-221 反冲核(任务X 单次衰变, 路线2 单步)
+    G4String fSourceType = "ac225";              // proton | ac225 | alpha | ac225_decay | ac225_single_decay | lu177_decay
     G4String fCompartment = "Membrane";          // Nucleus | Cytoplasm | Membrane | Extracellular
     G4double fX0 = 0.;                           // proton 模式源点 X 坐标
     G4double fY0 = 0.;                           // proton 模式源点 Y 坐标
