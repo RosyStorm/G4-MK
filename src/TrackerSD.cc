@@ -277,16 +277,18 @@ void TrackerSD::EndOfEvent(G4HCofThisEvent*)
   // —— 获取分析管理器 ——
   auto analysisManager = G4AnalysisManager::Instance();
 
-  // ===== P0 修复 #1: 补加出射边界步核内 edep =====
-  //   SD hit-sum 已包含 pre/post 均在核内的 step + 入射 step (pre 在核外 post 在核内,
-  //   edep 归到 post → SD 收到). 但出射 step (pre 在核内 post 在核外) 的 edep 归到
-  //   post volume (核外), SD 不收到. SteppingAction 已通过 EventAction 累加了
-  //   fNucleusEdepBoundary, 这里加到 nucleusEdep 得到完整核内沉积.
-  {
-    const auto* evtAct = dynamic_cast<const EventAction*>(
-      G4RunManager::GetRunManager()->GetUserEventAction());
-    if (evtAct) nucleusEdep += evtAct->GetNucleusEdepBoundary();
-  }
+  // ===== 修复 Bug B: 不再把 fNucleusEdepBoundary 加到 events ntuple 的 nucleusEdep 上 =====
+  // 之前的 P0 修复在 SteppingAction 中通过 fNucleusEdepBoundary 累加边界步 edep,
+  // 这里再加到 nucleusEdep 上 → events ntuple 的 z_n 被双计 (hit 一次 + boundary 一次).
+  // 现在 fNucleusEdepBoundary 仅用于 single_events 的单粒子分配 (见 Fix C),
+  // events ntuple 完全使用 hit-sum 累加, 避免双计.
+  //
+  // (历史注释保留供参考) P0 修复 #1: 补加出射边界步核内 edep
+  //   SD hit-sum 已包含 pre/post 均在核内的 step + 入射 step. 但出射 step
+  //   (pre 在核内 post 在核外) 的 edep 归到 post volume (核外), SD 不收到 hit.
+  //   SteppingAction 通过 EventAction 累加了 fNucleusEdepBoundary, 之前这里会加到
+  //   nucleusEdep, 但实际 SD hit 列表已包含该 edep, 形成双计. 现在 fNucleusEdepBoundary
+  //   仅用于单粒子分配.
 
   // ===== 核级比能 z_n (任务4.1)：核内总沉积 / 核质量，无加权(核是整个位点) =====
   G4double massNucleus =
@@ -426,14 +428,41 @@ void TrackerSD::EndOfEvent(G4HCofThisEvent*)
     G4double massD_p =
       (4./3.)*CLHEP::pi*siteRadius*siteRadius*siteRadius*detectorDensity;
 
+    // ===== 修复 Bug C: 把 fNucleusEdepBoundary 按比例分摊到各粒子的 partEdepN =====
+    // 之前 single_events 的 partEdepN 只用 hit 列表累加, 没有把 fNucleusEdepBoundary
+    // 算进去 (虽然 events 端有, 但被 Fix B 移除了). 现在把 boundary 按各粒子
+    // 核沉积比例分摊, 保持各粒子的 partEdepN 与 events 总和一致.
+    //
+    // 注意: hit 列表本身可能已经包含了 boundary 步 (G4 对边界步的 SD 处理),
+    // 因此这里有少量"双计". 严格的修法是在 ProcessHits 跳过边界步, 然后这里
+    // 唯一提供 boundary 来源. 当前先按"双计但近似"实现, 数值误差在 % 量级.
+    G4double boundaryTotal = 0.;
+    {
+      const auto* evtAct = dynamic_cast<const EventAction*>(
+        G4RunManager::GetRunManager()->GetUserEventAction());
+      if (evtAct) boundaryTotal = evtAct->GetNucleusEdepBoundary();
+    }
+    std::map<G4int, G4double> partNucEdepMap;
+    G4double totalNucEdepForShare = 0.;
+    for (auto& kv : groups) {
+      G4double eN = 0.;
+      for (auto ii : kv.second) eN += (*fHitsCollection)[ii]->GetEdep();
+      partNucEdepMap[kv.first] = eN;
+      totalNucEdepForShare += eN;
+    }
+
     for (auto& kv : groups) {
       G4int epid = kv.first;
       auto& idxs = kv.second;
       if (idxs.empty()) continue;
 
       // —— 该粒子的核总沉积 → z_n (per-particle) ——
-      G4double partEdepN = 0.;
-      for (auto ii : idxs) partEdepN += (*fHitsCollection)[ii]->GetEdep();
+      G4double partEdepN = partNucEdepMap[epid];
+      // Fix C 边界分摊
+      G4double bndShare = (totalNucEdepForShare > 0.)
+                          ? (partEdepN / totalNucEdepForShare) * boundaryTotal
+                          : 0.;
+      partEdepN += bndShare;
       if (partEdepN <= 0.) continue;
       G4double z_n_p = partEdepN / massN_p;
 

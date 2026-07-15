@@ -90,7 +90,8 @@ void SteppingAction::UserSteppingAction(const G4Step* step)
         // 路线1 只有 α+δ电子(均 Z≤2) → 完全不受影响, 行为与之前一致。
         if (track->GetParticleDefinition()->GetAtomicNumber() <= 2) {
           track->SetTrackStatus(fStopAndKill);
-          return;
+          // 修复 Bug A: 不 return, 让执行流继续到下方 P0 边界修正块,
+          // 以确保 α/β/γ 出核的最后一步 edep 也能被 fNucleusEdepBoundary 累加
         }
       }
     }
