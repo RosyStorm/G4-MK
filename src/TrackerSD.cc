@@ -422,6 +422,11 @@ void TrackerSD::EndOfEvent(G4HCofThisEvent*)
       G4int epid = (*fHitsCollection)[jj]->GetEventParticleID();
       if (epid >= 0) groups[epid].push_back(jj);
     }
+    // 诊断: 打印事件 4 的 group 分布 + 头 5 个 hit 的 (tid, epid)
+    if (evt && evt->GetEventID() == 4) {
+      // 诊断已移除(确认: 多 eid 是 Hf-177m 内部转换电子, 是真实物理)
+      (void)0;
+    }
     // 核质量与域质量
     G4double massN_p =
       (4./3.)*CLHEP::pi*nucleusRadius*nucleusRadius*nucleusRadius*detectorDensity;
@@ -450,6 +455,14 @@ void TrackerSD::EndOfEvent(G4HCofThisEvent*)
       partNucEdepMap[kv.first] = eN;
       totalNucEdepForShare += eN;
     }
+
+    // 任务X/Y: 循环外算一次源型, 避免每个粒子组都做字符串比较
+    //   alpha_events: 所有源型都启用, 只要 PDG == 1000020040 (He-4 α)
+    //     - ac225_single_decay: 1 个 α/事件(原始 5.83 MeV α)
+    //     - ac225_decay: 1-4 个 α/事件(完整衰变链 4α)
+    //     - ac225/alpha/proton: 1 个 α/事件(枪发)
+    //   beta_events: 仅 lu177_decay 触发, PDG == 11 (e⁻)
+    G4bool isBetaSrc  = (pga && pga->GetSourceType() == "lu177_decay");
 
     for (auto& kv : groups) {
       G4int epid = kv.first;
@@ -509,6 +522,54 @@ void TrackerSD::EndOfEvent(G4HCofThisEvent*)
       analysisManager->FillNtupleIColumn(1, 13, epid);                         // eventParticleID[额外]
       analysisManager->FillNtupleIColumn(1, 14, pdg);                          // pdg[额外]
       analysisManager->AddNtupleRow(1);
+
+      // —— 任务X: 同步复制到 alpha_events (id=2) ——
+      // 触发条件: 该粒子 PDG == He-4 (1000020040)
+      // 所有源型都启用 alpha_events 写入, 不再限定 ac225_single_decay.
+      // 这样 ac225_decay 完整链跑也会在 alpha_events 写 1-4 个 α 行,
+      // ac225/alpha 跑也会写 1 个 α 行, lu177_decay 跑该 ntuple 为空(无 He-4).
+      if (pdg == 1000020040) {
+        analysisManager->FillNtupleIColumn(2, 0,  evt ? evt->GetEventID() : 0);
+        analysisManager->FillNtupleDColumn(2, 1,  partKE);
+        analysisManager->FillNtupleDColumn(2, 2,  partEdepD / keV);
+        analysisManager->FillNtupleDColumn(2, 3,  z_d_p / gray);
+        analysisManager->FillNtupleDColumn(2, 4,  partEdepN / keV);
+        analysisManager->FillNtupleDColumn(2, 5,  z_n_p / gray);
+        analysisManager->FillNtupleDColumn(2, 6,  w_p);
+        analysisManager->FillNtupleIColumn(2, 7,  G4int(idxs.size()));
+        analysisManager->FillNtupleIColumn(2, 8,  nSite_p);
+        analysisManager->FillNtupleIColumn(2, 9,  nSite_p);
+        analysisManager->FillNtupleIColumn(2, 10, 1);
+        analysisManager->FillNtupleIColumn(2, 11, compId);
+        analysisManager->FillNtupleDColumn(2, 12, partEdepN / keV);
+        analysisManager->FillNtupleIColumn(2, 13, epid);
+        analysisManager->FillNtupleIColumn(2, 14, pdg);
+        analysisManager->AddNtupleRow(2);
+      }
+
+      // —— 任务Y: 同步复制到 beta_events (id=3) ——
+      // 触发条件: 源型 == "lu177_decay" 且该粒子 PDG == e⁻ (11)
+      // Lu-177 β⁻ 衰变每个事件产生 1 个初级 β⁻ (Lu-177 → Hf-177* + e⁻ + ν̄),
+      // 加上 γ 反冲核等. 此处仅记录 β⁻ 在核内的单事件打分, 与 alpha_events
+      // 列结构相同 (15 列), 列 1 名为 betaE_MeV.
+      if (isBetaSrc && pdg == 11) {
+        analysisManager->FillNtupleIColumn(3, 0,  evt ? evt->GetEventID() : 0);
+        analysisManager->FillNtupleDColumn(3, 1,  partKE);
+        analysisManager->FillNtupleDColumn(3, 2,  partEdepD / keV);
+        analysisManager->FillNtupleDColumn(3, 3,  z_d_p / gray);
+        analysisManager->FillNtupleDColumn(3, 4,  partEdepN / keV);
+        analysisManager->FillNtupleDColumn(3, 5,  z_n_p / gray);
+        analysisManager->FillNtupleDColumn(3, 6,  w_p);
+        analysisManager->FillNtupleIColumn(3, 7,  G4int(idxs.size()));
+        analysisManager->FillNtupleIColumn(3, 8,  nSite_p);
+        analysisManager->FillNtupleIColumn(3, 9,  nSite_p);
+        analysisManager->FillNtupleIColumn(3, 10, 1);
+        analysisManager->FillNtupleIColumn(3, 11, compId);
+        analysisManager->FillNtupleDColumn(3, 12, partEdepN / keV);
+        analysisManager->FillNtupleIColumn(3, 13, epid);
+        analysisManager->FillNtupleIColumn(3, 14, pdg);
+        analysisManager->AddNtupleRow(3);
+      }
     }
   }
 }

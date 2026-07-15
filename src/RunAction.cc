@@ -235,6 +235,53 @@ RunAction::RunAction()
   analysisManager->CreateNtupleIColumn("eventParticleID");  // 13 [路线2额外] 单事件粒子 ID
   analysisManager->CreateNtupleIColumn("pdg");              // 14 [路线2额外] PDG 编码
   analysisManager->FinishNtuple();
+
+  // 任务X: 仅记录由 ac225_single_decay 模式下的 He-4 α 粒子单事件
+  // 与 single_events 完全相同的列结构, 但仅在 ac225_single_decay 模式且 PDG == 1000020040
+  // (He-4 α) 时由 TrackerSD::EndOfEvent 条件性写入
+  analysisManager->CreateNtuple("alpha_events",
+    "Per-He4-alpha single-event (ac225_single_decay only)");
+  analysisManager->CreateNtupleIColumn("eventID");         // 0
+  analysisManager->CreateNtupleDColumn("alphaE_MeV");      // 1  α 产生时动能
+  analysisManager->CreateNtupleDColumn("edep_d_keV");      // 2
+  analysisManager->CreateNtupleDColumn("z_d_Gy");          // 3
+  analysisManager->CreateNtupleDColumn("edep_n_keV");      // 4
+  analysisManager->CreateNtupleDColumn("z_n_Gy");          // 5
+  analysisManager->CreateNtupleDColumn("weight");          // 6
+  analysisManager->CreateNtupleIColumn("nHsel");           // 7
+  analysisManager->CreateNtupleIColumn("nHsite");          // 8
+  analysisManager->CreateNtupleIColumn("nHint");           // 9
+  analysisManager->CreateNtupleIColumn("hitFlag");         // 10
+  analysisManager->CreateNtupleIColumn("compartment");     // 11
+  analysisManager->CreateNtupleDColumn("edep_total_keV");  // 12
+  analysisManager->CreateNtupleIColumn("eventParticleID"); // 13
+  analysisManager->CreateNtupleIColumn("pdg");             // 14
+  analysisManager->FinishNtuple();
+
+  // 任务Y: beta_events (id=3)
+  // 与 alpha_events 完全相同的列结构, 但仅在 lu177_decay 模式且 PDG == 11
+  // (e⁻ β⁻) 时由 TrackerSD::EndOfEvent 条件性写入。列 1 改名为 betaE_MeV
+  // 以反映该 ntuple 仅含 β⁻ 物理量(而 alpha_events 是 α 物理量)。
+  // 其它 ntuple(events/single_events/alpha_events)保留 alphaE_MeV 列名以避免
+  // 改动既有分析脚本。
+  analysisManager->CreateNtuple("beta_events",
+    "Per-beta single-event (lu177_decay only, PDG==11)");
+  analysisManager->CreateNtupleIColumn("eventID");         // 0
+  analysisManager->CreateNtupleDColumn("betaE_MeV");       // 1  β⁻ 产生时动能
+  analysisManager->CreateNtupleDColumn("edep_d_keV");      // 2
+  analysisManager->CreateNtupleDColumn("z_d_Gy");          // 3
+  analysisManager->CreateNtupleDColumn("edep_n_keV");      // 4
+  analysisManager->CreateNtupleDColumn("z_n_Gy");          // 5
+  analysisManager->CreateNtupleDColumn("weight");          // 6
+  analysisManager->CreateNtupleIColumn("nHsel");           // 7
+  analysisManager->CreateNtupleIColumn("nHsite");          // 8
+  analysisManager->CreateNtupleIColumn("nHint");           // 9
+  analysisManager->CreateNtupleIColumn("hitFlag");         // 10
+  analysisManager->CreateNtupleIColumn("compartment");     // 11
+  analysisManager->CreateNtupleDColumn("edep_total_keV");  // 12
+  analysisManager->CreateNtupleIColumn("eventParticleID"); // 13
+  analysisManager->CreateNtupleIColumn("pdg");             // 14
+  analysisManager->FinishNtuple();
 }
 
 
@@ -267,6 +314,9 @@ void RunAction::BeginOfRunAction(const G4Run* /*aRun*/)
   G4String fileName;
   if (sourceType == "ac225_decay") {
     fileName = "data/ac225_phy_decay_" + compartment + ".root";
+  }
+  else if (sourceType == "ac225_single_decay") {
+    fileName = "data/ac225_single_decay_" + compartment + ".root";
   }
   else if (sourceType == "lu177_decay") {
     fileName = "data/lu177_phy_decay_" + compartment + ".root";
