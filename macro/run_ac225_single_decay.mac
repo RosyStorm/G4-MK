@@ -1,0 +1,64 @@
+#========================================#
+# PC3 细胞 + Ac-225 单次 α 衰变(路线2 单步)#
+# /source/type ac225_single_decay:        #
+# 静止 Ac-225 → Fr-221 (反冲核, ~105.5 keV) #
+# + α (5.83 MeV), 动量守恒, 各向同性          #
+# 不跑后续 4α 链 (区别于 ac225_decay)        #
+# 几何与 run_ac225_decay.mac 一致            #
+#========================================#
+
+/control/verbose 0
+/run/verbose 2
+/tracking/verbose 0
+
+/random/setSeeds 102 001
+
+###########################
+### SETUP CONFIGURATION ###
+###########################
+/mygeom/maxRange        100. um
+/mygeom/material        G4_WATER
+/mygeom/cellRadius       10.0 um
+/mygeom/nucleusRadius     8.1 um
+/mygeom/siteRadius       0.23 um
+### 路线2 选择性 kill(Z≤2 出核即杀), 反冲核 Z>2 放过
+/mygeom/killOutsideCell true
+/mygeom/killAtNucleus   true
+
+####################
+### PHYSICS LIST ###
+####################
+/physics/addPhysics dna_opt2
+/run/setCutForAGivenParticle gamma   0.01 um
+/run/setCutForAGivenParticle e-      0.01 um
+/run/setCutForAGivenParticle e+      0.01 um
+/run/setCutForAGivenParticle proton  0.01 um
+
+######################
+### INITIALIZATION ###
+######################
+/run/numberOfThreads 16
+/run/initialize
+
+#################################
+### SOURCE (路线2 单次 α 衰变) ###
+#################################
+### 单次衰变: 静止 Ac-225 → Fr-221 (反冲) + α (5.83 MeV)
+### 同一事件双顶点: α + Fr-221 反冲核, 动量守恒反平行
+### 后续链 (Fr-221 → At-217 → ...) 不跑
+/source/type ac225_single_decay
+### /source/compartment Membrane
+/source/compartment Nucleus
+### /source/compartment WholeCell
+### /source/compartment CellExceptNucleus
+
+### 关键: 排除 Z>=87 (Fr, Ac...) 触发 G4RadioactiveDecay。
+###  本模式已手动 double-GeneratePrimaryVertex 发 α+Fr-221, 不需要 RDM 再衰变它们。
+###  限制 Z<=86 同时不影响其他源型(ac225_decay, lu177_decay)——它们在各自的 .mac 中也会显式覆盖这条命令。
+###  格式: nucleusLimits AMin AMax ZMin ZMax
+/process/had/rdm/nucleusLimits 1 300 1 86
+
+/run/particle/applyCuts true e-
+/run/particle/applyCuts true gamma
+
+/run/beamOn 1000
