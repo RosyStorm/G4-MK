@@ -99,11 +99,6 @@ def read_lq_params(csv_path):
     mode = str(df["mode"].iloc[0]) if "mode" in df.columns else "?"
     return alpha0, beta0, mode
 
-def get_z0(beta0, rn, rd):
-    '''
-    计算得到MK修正的z0
-    '''
-    return rn**2/(rd*np.sqrt(beta0*(rd**2 + rn**2)))
 # ============================================================
 # 主流程
 # ============================================================
@@ -152,12 +147,11 @@ def main():
     alpha0, beta0, lq_mode = read_lq_params(lq_path)
     rn = 6.4
     rd = 0.324
-    z0 = get_z0(beta0, rn, rd)
+
     print("=" * 64)
     print("[1] 参考辐射敏感性 (来自 fit_lq_xray.py)")
     print(f"    来源: {lq_path}  (模式: {lq_mode})")
     print(f"    α₀ = {alpha0:.6f} Gy⁻¹   β₀ = {beta0:.6f} Gy⁻²")
-    print(f"    计算得到MK修正的 z₀ = {z0:.3f} Gy (由 β₀, r_n={rn} μm, r_d={rd} μm 算出)")
     print(f"    输入饱和参数 z₀ = {args.z0:.3f} Gy")
 
     # —— 2+3. 用 ModifiedSMK 建模: 从 root 算微剂量学量 + SMK 系数 ——
