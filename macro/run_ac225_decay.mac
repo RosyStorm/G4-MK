@@ -50,7 +50,8 @@
 ###/source/compartment Membrane
 ### /source/compartment Nucleus
 ### /source/compartment WholeCell
-/source/compartment CellExceptNucleus
+### /source/compartment CellExceptNucleus
+/source/compartment Extracellular
 
 /run/particle/applyCuts true e-
 /run/particle/applyCuts true gamma

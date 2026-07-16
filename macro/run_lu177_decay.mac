@@ -50,10 +50,11 @@
 ### 静止 Lu-177 离子在膜面 → G4RadioactiveDecay 自动衰变(β⁻ + γ + 反冲核)
 ### β⁻ 主谱末端 0.497 MeV; γ: 208 keV (10%), 113 keV (6.2%)
 /source/type lu177_decay
-### /source/compartment Membrane
+###/source/compartment Membrane
 ### /source/compartment Nucleus
 ### /source/compartment WholeCell
-/source/compartment CellExceptNucleus
+### /source/compartment CellExceptNucleus
+/source/compartment Extracellular
 
 /run/particle/applyCuts true e-
 /run/particle/applyCuts true gamma
