@@ -72,9 +72,11 @@ PrimaryGeneratorMessenger::PrimaryGeneratorMessenger(
     " | alpha（单能 alpha，能量由 /gun/energy 设定）"
     " | ac225_decay（路线2：静止 Ac-225 完整衰变链 4α+β+γ+反冲，任务7.1）"
     " | ac225_single_decay（路线2：单次 Ac-225 → Fr-221 + α(5.83 MeV)，α+反冲核同事件双顶点，任务X）"
-    " | lu177_decay（路线2：静止 Lu-177 β⁻ + 208/113 keV γ + 反冲，任务8）");
+    " | lu177_decay（路线2：静止 Lu-177 β⁻ + 208/113 keV γ + 反冲，任务8）"
+    " | carbon（单能 C-12 碳离子，能量由 /gun/energy 设定，LET 参考值 33.7 keV/μm，用于 MKM/RBE 验证）"
+    " | am241_decay（Am-241 特征 α 源：5.486 MeV(85.2%)/5.443 MeV(12.8%)，直接抽样，不模拟 γ 与反冲核）");
   fSourceTypeCmd->SetParameterName("type", false);
-  fSourceTypeCmd->SetCandidates("proton ac225 alpha ac225_decay ac225_single_decay lu177_decay");
+  fSourceTypeCmd->SetCandidates("proton ac225 alpha ac225_decay ac225_single_decay lu177_decay carbon am241_decay");
   fSourceTypeCmd->SetDefaultValue("ac225");
   fSourceTypeCmd->AvailableForStates(G4State_PreInit, G4State_Idle);
 
@@ -88,6 +90,15 @@ PrimaryGeneratorMessenger::PrimaryGeneratorMessenger(
   fCompartmentCmd->SetCandidates("Nucleus Cytoplasm Membrane Extracellular WholeCell CellExceptNucleus");
   fCompartmentCmd->SetDefaultValue("Membrane");
   fCompartmentCmd->AvailableForStates(G4State_PreInit, G4State_Idle);
+
+  // —— SSD (Am-241 源到细胞表面距离) ——
+  fSSDCmd = std::make_unique<G4UIcmdWithADoubleAndUnit>("/source/ssd", this);
+  fSSDCmd->SetGuidance("Am-241 源到细胞表面的距离 (Source-to-Surface Distance)");
+  fSSDCmd->SetParameterName("ssd", false);
+  fSSDCmd->SetDefaultValue(9.8);
+  fSSDCmd->SetDefaultUnit("mm");
+  fSSDCmd->SetUnitCandidates("um mm cm");
+  fSSDCmd->AvailableForStates(G4State_PreInit, G4State_Idle);
 }
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
@@ -115,6 +126,10 @@ void PrimaryGeneratorMessenger::SetNewValue(G4UIcommand* command,
   // Ac-225 分布区间
   if (command == fCompartmentCmd.get()) {
     fPrimaryAction->SetCompartment(newValue);
+  }
+  // SSD (Am-241)
+  if (command == fSSDCmd.get()) {
+    fPrimaryAction->SetSSD(fSSDCmd->GetNewDoubleValue(newValue));
   }
 }
 

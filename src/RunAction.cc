@@ -330,6 +330,12 @@ void RunAction::BeginOfRunAction(const G4Run* /*aRun*/)
   else if (sourceType == "alpha") {
     fileName = "data/alpha.root";   // 单 α 验证, 无区室
   }
+  else if (sourceType == "carbon") {
+    fileName = "data/carbon_" + compartment + ".root";  // 碳离子验证, 按区室命名
+  }
+  else if (sourceType == "am241_decay") {
+    fileName = "data/am241_phy_decay_" + compartment + ".root";  // Am-241 完整衰变链, 按区室命名
+  }
   else {
     fileName = "data/microtrack.root";  // 兜底
   }

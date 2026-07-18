@@ -116,6 +116,16 @@ DetectorMessenger::DetectorMessenger(DetectorConstruction* myDet)
   fKillAtNucleusCmd->SetParameterName("flag2", false);
   fKillAtNucleusCmd->SetDefaultValue(true);
   fKillAtNucleusCmd->AvailableForStates(G4State_PreInit, G4State_Idle);
+
+  // —— 世界材料空气开关 (Am-241 外照射 SSD 空气间隙) ——
+  fWorldAirCmd =
+    std::make_unique<G4UIcmdWithABool>("/mygeom/worldAir", this);
+  fWorldAirCmd->SetGuidance(
+    "世界材料: true=空气(Am-241 外照射, 细胞外为空气), false=水(默认, 其他源不变)。"
+    " 细胞和细胞核始终为水。");
+  fWorldAirCmd->SetParameterName("air", false);
+  fWorldAirCmd->SetDefaultValue(false);
+  fWorldAirCmd->AvailableForStates(G4State_PreInit);
 }
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
@@ -157,6 +167,10 @@ void DetectorMessenger::SetNewValue(G4UIcommand* command, G4String newValue)
   // 核边界杀死半径开关
   else if (command == fKillAtNucleusCmd.get()) {
     fDetector->SetKillAtNucleus(fKillAtNucleusCmd->GetNewBoolValue(newValue));
+  }
+  // 世界材料空气开关
+  else if (command == fWorldAirCmd.get()) {
+    fDetector->SetWorldIsAir(fWorldAirCmd->GetNewBoolValue(newValue));
   }
 }
 

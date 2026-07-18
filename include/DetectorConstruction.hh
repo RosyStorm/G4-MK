@@ -63,6 +63,7 @@ class DetectorConstruction : public G4VUserDetectorConstruction
     void SetSiteRadius(const G4double& siteRadius) { fSiteRadius = siteRadius; } // 域半径 r_d
     void SetKillOutsideCell(G4bool v) { fKillOutsideCell = v; }              // 是否杀死出细胞的粒子
     void SetKillAtNucleus(G4bool v) { fKillAtNucleus = v; }                  // 杀死半径取 R_n 还是 R_cell
+    void SetWorldIsAir(G4bool v) { fWorldIsAir = v; }                        // 世界材料改为空气(Am-241 外照射)
     void PrintParameters(G4VPhysicalVolume*) const;   // 打印体积参数
     void CheckConsistency();                          // 校验几何参数一致性
 
@@ -77,6 +78,7 @@ class DetectorConstruction : public G4VUserDetectorConstruction
     G4double GetSiteRadius() const { return fSiteRadius; }       // 域半径
     G4bool GetKillOutsideCell() const { return fKillOutsideCell; }
     G4bool GetKillAtNucleus() const { return fKillAtNucleus; }
+    G4bool GetWorldIsAir() const { return fWorldIsAir; }
 
   private:
     // ===== 私有构建方法 =====
@@ -89,12 +91,15 @@ class DetectorConstruction : public G4VUserDetectorConstruction
 
     // ===== 几何与材料参数 =====
     G4Material* fMat = nullptr;        // 介质指针（默认 G4_WATER）
+    G4Material* fWorldMat = nullptr;   // 世界材料(fWorldIsAir 时为 G4_AIR, 否则 = fMat)
+    G4LogicalVolume* fLogicalCell = nullptr;  // 细胞逻辑体积指针(供 ConstructSDandField 创建区域)
     G4double fMaxRange = 8.25 * um;    // 次级电子最大射程（决定细胞外水层厚度）
     G4double fCellRadius = 10. * um;   // 细胞(膜)半径 R_cell
     G4double fNucleusRadius = 8. * um; // 细胞核半径 R_n
     G4double fSiteRadius = 0.5 * um;   // 域(site)半径 r_d
     G4bool fKillOutsideCell = true;    // 加速：出细胞且向外运动的粒子 kill 掉(产线默认开,射程验证需关)
     G4bool fKillAtNucleus = true;      // kill 半径取 R_n(默认,更快) 还是 R_cell
+    G4bool fWorldIsAir = false;         // 世界材料: true=空气(Am-241), false=水(默认)
 };
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......

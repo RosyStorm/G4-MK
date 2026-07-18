@@ -74,6 +74,13 @@ G4VPhysicalVolume* DetectorConstruction::Construct()
   // 第二步：定义体积层次（世界内含细胞，细胞内含细胞核）
   G4VPhysicalVolume* world = DefineWorld();
 
+  // —— 方案C: Am-241 混合物理时创建 CellRegion(仅 master 线程调用一次) ——
+  if (fWorldIsAir && fLogicalCell) {
+    auto* cellRegion = new G4Region("CellRegion");
+    cellRegion->AddRootLogicalVolume(fLogicalCell);
+    G4cout << "已创建 CellRegion (混合物理: 细胞=DNA, 世界=标准EM)" << G4endl;
+  }
+
   return world;
 }
 
@@ -90,6 +97,17 @@ void DetectorConstruction::DefineMaterials()
   // 若尚未指定材料，则默认使用 NIST 液态水
   if (!fMat) {
     fMat = nist->FindOrBuildMaterial("G4_WATER");
+  }
+
+  // 世界材料：fWorldIsAir 时为真空(Am-241 外照射 SSD 间隙)，否则与细胞同为水。
+  // 注: 用 G4_Galactic(真空) 而非 G4_AIR —— DNA 物理(dna_opt2) 截面只为液态水
+  //     参数化, 在空气中无效(无电离/步长异常); 真空下 α 自由飞行到细胞表面,
+  //     空气能量损失仅 ~2%(5.5 MeV α 在 9.8mm 空气中损失 ~98 keV), 可忽略。
+  if (fWorldIsAir) {
+    fWorldMat = nist->FindOrBuildMaterial("G4_Galactic");
+    G4cout << "世界材料: G4_Galactic (真空, Am-241 外照射模式)" << G4endl;
+  } else {
+    fWorldMat = fMat;
   }
 
   // 打印当前材料名称
@@ -164,7 +182,7 @@ G4VPhysicalVolume* DetectorConstruction::DefineWorld()
 
   // —— 世界逻辑体积（绑定材料，无磁场、无敏感标记）——
   auto* logicalWorld =
-    new G4LogicalVolume(solidWorld, fMat, "World", nullptr, nullptr, nullptr);
+    new G4LogicalVolume(solidWorld, fWorldMat, "World", nullptr, nullptr, nullptr);
 
   // —— 世界物理体积（置于原点，无旋转；作为根节点，母体积为空）——
   G4VPhysicalVolume* world = new G4PVPlacement(
@@ -199,14 +217,14 @@ DetectorConstruction::DefineCell(G4VPhysicalVolume* mother)
   auto* solidCell = new G4Orb("Cell", fCellRadius);
 
   // —— 细胞逻辑体积 ——
-  auto* logicalCell =
+  fLogicalCell =
     new G4LogicalVolume(solidCell, fMat, "Cell", nullptr, nullptr, nullptr);
 
   // —— 细胞物理体积（置于母体积原点，无旋转）——
   G4VPhysicalVolume* cell = new G4PVPlacement(
     nullptr,                       // 母体积旋转矩阵
     G4ThreeVector(),               // 相对母体积的平移（原点）
-    logicalCell,                   // 关联的逻辑体积
+    fLogicalCell,                  // 关联的逻辑体积
     "Cell",                        // 体积名称
     mother->GetLogicalVolume(),    // 母逻辑体积（世界）
     false,                         // 是否复制体积
@@ -273,7 +291,6 @@ void DetectorConstruction::ConstructSDandField()
   sdManager->AddNewDetector(trackerSD);
 
   // 将探测器挂载到细胞核逻辑体积
-  // 第三个参数 true 表示同时挂载到该体积的所有子体积
   SetSensitiveDetector("Nucleus", trackerSD, true);
 }
 

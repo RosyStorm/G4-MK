@@ -200,53 +200,25 @@ void TrackerSD::EndOfEvent(G4HCofThisEvent*)
   G4double nucleusEdep = 0.;  // 核内总能量沉积(单事件, 任务4.1 用于 z_n)
 
   // —— 若有命中，随机选取一个命中作为 site 抽样锚点 ——
+  // 注: SD 挂在 Nucleus 上，所有 hit 都在核内产生(无需 mag()<R_n 检查)。
+  //   旧代码的 mag()<R_n 检查继承自 microtrack 示例(那里 SD 在更大的盒子上)，
+  //   对外照射(Am-241)会导致边界步 post-step 点恰在核外 → 1000 次找不到 → 跳过事件。
   if (nofHits > 0) {
-    const G4int maxTries = 1000;  // 最大尝试次数
-    G4int tries = 0;
-    G4bool found = false;
+    std::size_t randHit = static_cast<std::size_t>(G4UniformRand() * nofHits);
+    G4ThreeVector hitPos = (*fHitsCollection)[randHit]->GetPosition();
 
-    while (tries < maxTries && !found) {
-      std::size_t randHit = static_cast<std::size_t>(G4UniformRand() * nofHits);
-      auto hit = (*fHitsCollection)[randHit];
-      G4ThreeVector hitPosition = hit->GetPosition();
+    // 在命中点周围随机放置 site 球心（球内均匀采样偏移量）
+    G4double siteRadius2 = siteRadius * siteRadius;
+    G4double xRand, yRand, zRand, randRad2;
+    do {
+      xRand = (2 * G4UniformRand() - 1) * siteRadius;
+      yRand = (2 * G4UniformRand() - 1) * siteRadius;
+      zRand = (2 * G4UniformRand() - 1) * siteRadius;
+      randRad2 = xRand * xRand + yRand * yRand + zRand * zRand;
+    } while (randRad2 > siteRadius2);
 
-      // 判定该 hit 是否落在细胞核内(核球为 hit 选择区)
-      //   且要求 site 球能完全置于核内: 即此 hit 周围 r_d 球内的 site 中心
-      //   满足 |randCenterPos| + r_d ≤ R_n. 由于 randCenterPos = hitPos + 偏移(|偏移|≤r_d),
-      //   充要条件是 |hitPos| ≤ R_n - r_d. 这样保证 site 完全在核内,
-      //   避免 site 部分超出核导致 nHint 偏小、nHsel/nHint 加权比偏高.
-      if (hitPosition.mag() <= nucleusRadius - siteRadius)
-      {
-        hitPos = hitPosition;  // 记录有效的命中位置
-
-        found = true;
-      }
-      ++tries;
-    }
-
-    if (found) {
-      G4double siteRadius2 = siteRadius * siteRadius;  // 域半径平方
-
-      // 在命中点周围随机放置 site 球心（球内均匀采样偏移量）
-      G4double xRand, yRand, zRand, randRad2;
-      do {
-        xRand = (2 * G4UniformRand() - 1) * siteRadius;
-        yRand = (2 * G4UniformRand() - 1) * siteRadius;
-        zRand = (2 * G4UniformRand() - 1) * siteRadius;
-        randRad2 = xRand * xRand + yRand * yRand + zRand * zRand;
-      } while (randRad2 > siteRadius2);
-
-      randCenterPos = G4ThreeVector(xRand + hitPos.x(), yRand + hitPos.y(),
-                                    zRand + hitPos.z());
-    }
-
-    else {
-      G4cout
-        << "本事件尝试 " << tries << " 次后仍未在核内找到命中。" << G4endl
-        << "请检查源位置 / 核半径是否合理。" << G4endl;
-      // 不再 return: miss 事件仍需填 ntuple(hitFlag=0), 保持任务 4.2 hit/miss 都记录的设计
-      // 此时 nHsel=nHsite=nHint=0, evtEdep=0; z_n/z_d 直方图被 if(nucleusEdep>0)/if(nHint>0) 自然过滤
-    }
+    randCenterPos = G4ThreeVector(xRand + hitPos.x(), yRand + hitPos.y(),
+                                  zRand + hitPos.z());
   }
 
   // —— 遍历所有命中，累加能量并统计各区域命中数 ——

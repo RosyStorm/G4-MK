@@ -54,6 +54,10 @@ class G4ParticleDefinition;
 ///   - ac225_single_decay：路线2 单次 Ac-225 → Fr-221 + α (5.83 MeV), 动量守恒反平行,
 ///                         不跑后续链
 ///   - lu177_decay       ：路线2 静止 Lu-177 β⁻ + 208/113 keV γ + 反冲
+///   - carbon            ：单能 C-12 碳离子验证模式，能量由 /gun/energy 给
+///                         LET 参考值：33.7 keV/μm（对应约 150 MeV/u，总动能约 1800 MeV）
+///   - am241_decay       ：Am-241 特征 α 能谱直接抽样
+///                         5.486 MeV(85.2%)/5.443 MeV(12.8%)，不模拟伴随 γ 或反冲核
 ///
 /// 区室取值：Nucleus(核内) | Cytoplasm(质内) | Membrane(膜面,默认) | Extracellular(胞外) | WholeCell | CellExceptNucleus
 class PrimaryGeneratorAction : public G4VUserPrimaryGeneratorAction
@@ -79,11 +83,15 @@ class PrimaryGeneratorAction : public G4VUserPrimaryGeneratorAction
     G4String GetSourceType() const { return fSourceType; }     // 取源类型
     void SetCompartment(const G4String& c) { fCompartment = c; }  // 设置源区室(ac225 模式)
     G4String GetCompartment() const { return fCompartment; }      // 取源区室
+    void SetSSD(G4double v) { fSSD = v; }                        // 设置源到细胞表面距离(am241)
+    G4double GetSSD() const { return fSSD; }                      // 取 SSD
 
   private:
-    // ===== Ac-225 α 源辅助方法 =====
+    // ===== α 源辅助方法 =====
     G4double SampleAc225AlphaEnergy() const;                       // 抽样 Ac-225 衰变链 α 动能
+    G4double SampleAm241AlphaEnergy() const;                       // 按 Am-241 主 α 分支比抽样动能
     G4ThreeVector SampleIsotropicDirection() const;                // 各向同性单位方向
+    G4ThreeVector SampleConeDirection(G4double halfAngle) const;   // 以 (0,0,-1) 为轴、半角 halfAngle 的锥内均匀抽样方向
     G4ThreeVector SampleSourcePosition() const;                    // 按 fCompartment 抽样源点位置
     G4ThreeVector SampleInSphere(G4double R) const;                // 球内均匀抽样
     G4ThreeVector SampleInShell(G4double Rin, G4double Rout) const;  // 球壳内均匀抽样
@@ -100,11 +108,13 @@ class PrimaryGeneratorAction : public G4VUserPrimaryGeneratorAction
     G4ParticleDefinition* fAc225 = nullptr;      // Ac-225 离子（路线2 完整衰变链，任务7.1）
     G4ParticleDefinition* fLu177 = nullptr;      // Lu-177 离子（路线2 β⁻ 衰变链，任务8）
     G4ParticleDefinition* fFr221 = nullptr;      // Fr-221 反冲核(任务X 单次衰变, 路线2 单步)
-    G4String fSourceType = "ac225";              // proton | ac225 | alpha | ac225_decay | ac225_single_decay | lu177_decay
+    G4ParticleDefinition* fCarbon = nullptr;     // C-12 碳离子（单能模式，LET 参考值 33.7 keV/μm）
+    G4String fSourceType = "ac225";              // proton | ac225 | alpha | ac225_decay | ac225_single_decay | lu177_decay | carbon | am241_decay
     G4String fCompartment = "Membrane";          // Nucleus | Cytoplasm | Membrane | Extracellular
     G4double fX0 = 0.;                           // proton 模式源点 X 坐标
     G4double fY0 = 0.;                           // proton 模式源点 Y 坐标
     G4double fZ0 = -10.2 * um;                   // proton 模式源点 Z 坐标
+    G4double fSSD = 9.8 * mm;                     // Am-241 源到细胞表面距离(Source-to-Surface Distance)
     G4double fMomentumX = 0.;                    // proton 模式动量方向 X 分量
     G4double fMomentumY = 0.;                    // proton 模式动量方向 Y 分量
     G4double fMomentumZ = 1.;                    // proton 模式动量方向 Z 分量

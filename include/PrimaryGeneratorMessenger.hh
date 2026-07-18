@@ -66,6 +66,7 @@ class PrimaryGeneratorMessenger : public G4UImessenger
     std::unique_ptr<G4UIcmdWithADoubleAndUnit> fZ0Cmd;                 // /beam/position/Z0 命令
     std::unique_ptr<G4UIcmdWithAString> fSourceTypeCmd;                // /source/type 命令
     std::unique_ptr<G4UIcmdWithAString> fCompartmentCmd;               // /source/compartment 命令
+    std::unique_ptr<G4UIcmdWithADoubleAndUnit> fSSDCmd;                // /source/ssd 命令(Am-241)
 };
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......

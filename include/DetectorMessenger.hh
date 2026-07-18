@@ -67,6 +67,7 @@ class DetectorMessenger : public G4UImessenger
     std::unique_ptr<G4UIcmdWithADoubleAndUnit> fSiteRadiusCmd;          // 域半径 r_d
     std::unique_ptr<G4UIcmdWithABool> fKillOutsideCellCmd;              // 出细胞向外粒子 kill 开关
     std::unique_ptr<G4UIcmdWithABool> fKillAtNucleusCmd;                // kill 半径取 R_n 还是 R_cell
+    std::unique_ptr<G4UIcmdWithABool> fWorldAirCmd;                    // 世界材料空气开关(Am-241)
 };
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......

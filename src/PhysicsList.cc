@@ -36,6 +36,16 @@
 
 #include "PhysicsListMessenger.hh"
 
+// 方案C: 混合区域物理(空气标准EM + 细胞DNA)
+#include "DetectorConstruction.hh"
+#include "G4RunManager.hh"
+#include "G4LossTableManager.hh"
+#include "G4EmConfigurator.hh"
+#include "G4RegionStore.hh"
+#include "G4BetheBlochModel.hh"
+#include "G4MollerBhabhaModel.hh"
+#include "G4UrbanMscModel.hh"
+
 // 粒子定义
 #include "G4Gamma.hh"
 #include "G4Electron.hh"
@@ -142,12 +152,67 @@ void PhysicsList::ConstructParticle()
 void PhysicsList::ConstructProcess()
 {
   /// 构造所有物理过程：输运 + 电磁/DNA 过程 + 截断设置。
+  /// 方案C(Am-241): 若 fWorldIsAir, 注册标准EM+DNA 双物理,
+  ///   用 G4EmConfigurator 在 CellRegion 中关闭标准EM(避免双重计数)。
 
   // —— 粒子输运过程 ——
   AddTransportation();
 
-  // —— 电磁/DNA 物理过程 ——
-  fPhysicsList->ConstructProcess();
+  // —— 检测是否 Am-241 混合物理模式 ——
+  const auto* det = static_cast<const DetectorConstruction*>(
+    G4RunManager::GetRunManager()->GetUserDetectorConstruction());
+  G4bool mixedPhysics = det && det->GetWorldIsAir();
+
+  if (mixedPhysics) {
+    // ===== 方案C: 空气用标准EM, 细胞用DNA =====
+    G4cout << "[PhysicsList] 混合物理模式: 空气=标准EM(option4), 细胞=DNA(option2)" << G4endl;
+
+    // (a) 标准 EM(空气中 α 能损由 Bethe-Bloch 处理)
+    fEmPhysics = std::make_unique<G4EmStandardPhysics_option4>();
+    fEmPhysics->ConstructProcess();
+
+    // (b) DNA 物理(细胞水中逐电离跟踪)
+    fPhysicsList->ConstructProcess();
+
+    // (c) 在 CellRegion 中关闭标准 EM 模型(避免水中的双重计数)
+    //   仅当 CellRegion 存在时执行(master 在 Construct() 中创建, worker 通过共享几何可见)
+    G4Region* cellRegion = G4RegionStore::GetInstance()->GetRegion("CellRegion");
+    if (cellRegion) {
+      auto* emConf = G4LossTableManager::Instance()->EmConfigurator();
+      const G4double thresh = 9.9 * MeV;
+
+      // alpha: ionIoni(标准) 在 CellRegion 关闭
+      {
+        auto* mod = new G4BetheBlochModel();
+        mod->SetActivationLowEnergyLimit(thresh);
+        emConf->SetExtraEmModel("alpha", "ionIoni", mod, "CellRegion");
+      }
+      // e-: eIoni + msc 在 CellRegion 关闭
+      {
+        auto* mod = new G4MollerBhabhaModel();
+        mod->SetActivationLowEnergyLimit(thresh);
+        emConf->SetExtraEmModel("e-", "eIoni", mod, "CellRegion");
+      }
+      {
+        auto* mod = new G4UrbanMscModel();
+        mod->SetActivationLowEnergyLimit(thresh);
+        emConf->SetExtraEmModel("e-", "msc", mod, "CellRegion");
+      }
+      // proton: hIoni 在 CellRegion 关闭
+      {
+        auto* mod = new G4BetheBlochModel();
+        mod->SetActivationLowEnergyLimit(thresh);
+        emConf->SetExtraEmModel("proton", "hIoni", mod, "CellRegion");
+      }
+
+      emConf->AddModels();
+      G4cout << "[PhysicsList] CellRegion: 标准 EM 已关闭, DNA 生效" << G4endl;
+    }
+  }
+  else {
+    // ===== 其他源: 纯 DNA(不变) =====
+    fPhysicsList->ConstructProcess();
+  }
 
   // —— 放射性衰变(路线2, 任务7.1): α/β/γ/核反冲衰变链 ——
   fDecayPhysics->ConstructProcess();

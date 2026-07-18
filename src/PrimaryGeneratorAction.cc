@@ -211,6 +211,36 @@ void PrimaryGeneratorAction::GeneratePrimaries(G4Event* anEvent)
 
     return;  // 关键: 已在分支内调两次 GeneratePrimaryVertex, 跳过末尾公共调用的第 3 次
   }
+  else if (fSourceType == "carbon") {
+    // —— 碳离子(C-12)单能模式：位置按区室，方向各向同性，能量由 /gun/energy 给 ——
+    // LET 参考值: 33.7 keV/μm，对应约 150 MeV/u（总动能约 1800 MeV），具体见 run_carbon.mac
+    // 靶区比释动能参考值: 900 mGy（用于 MKM/SMK/DSMK 模型验证，与 α 源对比 RBE）
+    // 延迟取 C-12 离子定义（构造函数里取会因 GenericIon 未就绪而失败，同 fAc225/fLu177）
+    if (!fCarbon) {
+      fCarbon = G4IonTable::GetIonTable()->GetIon(6, 12, 0.0);  // C-12: Z=6, A=12
+    }
+    if (!fCarbon) {
+      G4ExceptionDescription msg;
+      msg << "C-12 离子(Z=6,A=12)无法创建 — 检查 PhysicsList 是否构造了离子。";
+      G4Exception("PrimaryGeneratorAction::GeneratePrimaries", "PGA005",
+                  FatalException, msg);
+    }
+
+    G4ThreeVector pos = SampleSourcePosition();
+    G4ThreeVector dir = SampleIsotropicDirection();
+
+    fParticleGun->SetParticleDefinition(fCarbon);
+    fParticleGun->SetParticlePosition(pos);
+    fParticleGun->SetParticleMomentumDirection(dir);
+    // 注：动能由 /gun/energy 宏命令设定，不在此处硬编码（与 alpha 模式一致）
+
+    if (anEvent->GetEventID() < 5) {
+      G4cout << "[carbon] event " << anEvent->GetEventID()
+             << "  comp=" << fCompartment
+             << "  |pos|=" << pos.mag() / um << " um"
+             << "  dir=" << dir << G4endl;
+    }
+  }
   else if (fSourceType == "lu177_decay") {
     // —— 路线2(任务8): Lu-177 β⁻ 衰变链 ———
     // 静止 Lu-177 离子置于源点, G4RadioactiveDecay 自动跑 β⁻ (max 497 keV) +
@@ -239,6 +269,41 @@ void PrimaryGeneratorAction::GeneratePrimaries(G4Event* anEvent)
              << "  comp=" << fCompartment
              << "  |pos|=" << pos.mag() / um << " um"
              << "  (Lu-177 at rest → β⁻ + 208/113 keV γ + recoil)" << G4endl;
+    }
+  }
+  else if (fSourceType == "am241_decay") {
+    // —— Am-241 外照射 α 源 ——
+    // 源位于细胞正上方(0,0, R_cell + SSD)，SSD 由 /source/ssd 设置(默认 9.8 mm)。
+    // α 方向不对准各向同性，而是以锥形对准细胞核(保证每发都命中核)。
+    // 能量按 Am-241 主分支比抽样(5.486/5.443 MeV)。
+    const G4double ekin = SampleAm241AlphaEnergy();
+
+    // —— 源位置：细胞正上方 ——
+    const auto* det = static_cast<const DetectorConstruction*>(
+      G4RunManager::GetRunManager()->GetUserDetectorConstruction());
+    G4double cellR = det ? det->GetCellRadius() : 11.2 * um;
+    G4ThreeVector pos(0., 0., cellR + fSSD);           // 正上方
+
+    // —— 方向：锥形对准核 ——
+    // 从源点到核中心的距离 d = |pos| = cellR + SSD
+    // 核半径 R_n，锥半角 θ_max = arcsin(R_n / d)，保证锥内所有方向都命中核
+    G4double nucR = det ? det->GetNucleusRadius() : 6.4 * um;
+    G4double d = pos.mag();                              // 源到核中心距离
+    G4double halfAngle = (d > nucR) ? std::asin(nucR / d) : 0.1745;  // θ_max; d≤R_n 时兜底 10°
+    G4ThreeVector dir = SampleConeDirection(halfAngle);
+
+    fParticleGun->SetParticleDefinition(fAlpha);
+    fParticleGun->SetParticleEnergy(ekin);
+    fParticleGun->SetParticlePosition(pos);
+    fParticleGun->SetParticleMomentumDirection(dir);
+
+    if (anEvent->GetEventID() < 5) {
+      G4cout << "[Am241-alpha] event " << anEvent->GetEventID()
+             << "  Ekin=" << ekin / MeV << " MeV"
+             << "  pos=" << pos / mm << " mm"
+             << "  SSD=" << fSSD / mm << " mm"
+             << "  cone_half=" << halfAngle / deg << " deg"
+             << "  dir=" << dir << G4endl;
     }
   }
   else {
@@ -284,6 +349,25 @@ G4double PrimaryGeneratorAction::SampleAc225AlphaEnergy() const
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
 
+G4double PrimaryGeneratorAction::SampleAm241AlphaEnergy() const
+{
+  /// 按 Am-241 两个主要 α 分支的归一化分支比抽样动能。
+  /// @return 抽样得到的 α 动能（MeV）
+  ///
+  /// Am-241 → Np-237 + α 主分支：
+  ///   5.486 MeV：85.2%
+  ///   5.443 MeV：12.8%
+  /// 本实现只保留这两个主分支，按其总分支比 98.0% 归一化抽样。
+
+  const G4double eMain = 5.486 * MeV;
+  const G4double eSecondary = 5.443 * MeV;
+  const G4double mainBranchProbability = 85.2 / (85.2 + 12.8);
+
+  return G4UniformRand() < mainBranchProbability ? eMain : eSecondary;
+}
+
+//....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
+
 G4ThreeVector PrimaryGeneratorAction::SampleIsotropicDirection() const
 {
   /// 抽样一个各向同性单位方向向量。
@@ -295,6 +379,26 @@ G4ThreeVector PrimaryGeneratorAction::SampleIsotropicDirection() const
   G4double phi = CLHEP::twopi * G4UniformRand();               // 方位角 φ ∈ [0,2π)
   return G4ThreeVector(sinTheta * std::cos(phi), sinTheta * std::sin(phi),
                        cosTheta);
+}
+
+//....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
+
+G4ThreeVector
+PrimaryGeneratorAction::SampleConeDirection(G4double halfAngle) const
+{
+  /// 以 (0,0,-1) 为轴、半角 halfAngle 的圆锥内均匀抽样一个单位方向。
+  /// 用于 Am-241 外照射：源在细胞正上方，α 对准细胞核方向发射。
+  /// @param halfAngle 锥的半角(rad)；0 = 完全平行(直射)
+  /// @return 单位方向向量(朝 -z 方向，在锥内均匀分布)
+
+  // 在锥内均匀抽样(立体角均匀)：cosθ 在 [cos(halfAngle), 1] 均匀
+  G4double cosMin = std::cos(halfAngle);
+  G4double cosTheta = cosMin + (1. - cosMin) * G4UniformRand();
+  G4double sinTheta = std::sqrt((1. - cosTheta) * (1. + cosTheta));
+  G4double phi = CLHEP::twopi * G4UniformRand();
+  // 轴为 (0,0,-1)：方向 = (sinθ cosφ, sinθ sinφ, -cosθ)
+  return G4ThreeVector(sinTheta * std::cos(phi), sinTheta * std::sin(phi),
+                       -cosTheta);
 }
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
