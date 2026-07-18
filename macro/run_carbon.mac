@@ -1,0 +1,62 @@
+#==========================================#
+# Carbon-12 ion microdosimetry simulation  #
+# C-12 碳离子微剂量学验证                   #
+# LET 参考值 : 33.7 keV/μm                 #
+# 靶区比释动能参考值 : 900 mGy              #
+#==========================================#
+#
+# 物理说明：
+#   C-12 在水中 LET=33.7 keV/μm 对应约 150 MeV/u，总动能约 1800 MeV
+#   此能量为近似估算（基于 Bethe-Bloch 缩放），需用 Geant4 分步追踪验证
+#   可通过 /analysis/verbose 输出平均 dE/dx 核对 LET
+#   靶区（细胞核）比释动能参考值 900 mGy 为 MKM/SMK/DSMK 模型对比所用基准剂量
+#
+
+/control/verbose 0
+/run/verbose 2
+/tracking/verbose 0
+
+/random/setSeeds 103 001
+
+###########################
+### SETUP CONFIGURATION ###
+###########################
+/mygeom/maxRange        100. um
+/mygeom/material        G4_WATER
+/mygeom/cellRadius      10. um
+/mygeom/nucleusRadius    8. um
+/mygeom/siteRadius      0.5 um
+/mygeom/killOutsideCell true
+
+####################
+### PHYSICS LIST ###
+####################
+### 注：Geant4-DNA dna_opt2 仅覆盖质子/α，重离子需用 dna_opt6 或 em_standard_opt4
+### 若 dna_opt2 无 C-12 截面会回落到 Geant4 标准 EM，如报 WARNING 请切换物理列表
+/physics/addPhysics dna_opt6
+/run/setCutForAGivenParticle gamma   0.01 um
+/run/setCutForAGivenParticle e-      0.01 um
+/run/setCutForAGivenParticle e+      0.01 um
+/run/setCutForAGivenParticle proton  0.01 um
+
+######################
+### INITIALIZATION ###
+######################
+/run/numberOfThreads 8
+/run/initialize
+
+###############################
+### SOURCE (mono C-12 ion)   ###
+###############################
+### C-12 单能碳离子：位置按区室，方向各向同性，能量对应 LET=33.7 keV/μm
+### 能量约 1800 MeV（150 MeV/u × 12），如需精确 LET 请在模拟后验证并调整
+### 注：粒子定义(C-12 离子, Z=6 A=12)由代码中 fCarbon=G4IonTable::GetIon(6,12,0)自动处理，
+###     此处无需 /gun/particle 或 /gun/ion 命令，只需指定源类型与动能
+/source/type carbon
+/source/compartment Nucleus
+/gun/energy 1800.0 MeV
+
+/run/particle/applyCuts true e-
+/run/particle/applyCuts true gamma
+
+/run/beamOn 10
