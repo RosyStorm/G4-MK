@@ -38,6 +38,7 @@
 #include "globals.hh"
 
 #include "PrimaryGeneratorAction.hh"  // 取源类型/区室 → 动态文件名
+#include "DetectorConstruction.hh"   // 取 siteRadius → Am-241 文件名
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
 
@@ -334,7 +335,13 @@ void RunAction::BeginOfRunAction(const G4Run* /*aRun*/)
     fileName = "data/carbon_" + compartment + ".root";  // 碳离子验证, 按区室命名
   }
   else if (sourceType == "am241_decay") {
-    fileName = "data/am241_phy_decay_" + compartment + ".root";  // Am-241 完整衰变链, 按区室命名
+    // Am-241 外照射: 文件名含 r_d(域半径), 不含区室(源固定在细胞上方)
+    const auto* det = static_cast<const DetectorConstruction*>(
+      G4RunManager::GetRunManager()->GetUserDetectorConstruction());
+    G4double rd = det ? det->GetSiteRadius() : 0.5 * um;
+    // r_d 取 nm 整数(如 0.24um → 240, 0.5um → 500)
+    G4int rd_nm = G4int(rd / nm + 0.5);
+    fileName = "data/Am241/am241_phy_decay_rd" + std::to_string(rd_nm) + "nm.root";
   }
   else {
     fileName = "data/microtrack.root";  // 兜底
