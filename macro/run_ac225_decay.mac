@@ -18,10 +18,10 @@
 /mygeom/material        G4_WATER
 /mygeom/cellRadius       11.2 um
 /mygeom/nucleusRadius     6.4 um
-/mygeom/siteRadius       0.324 um
+/mygeom/siteRadius       0.31 um
 ###/mygeom/cellRadius       10.0 um
 ###/mygeom/nucleusRadius     8.1 um
-###/mygeom/siteRadius       0.26 um
+###/mygeom/siteRadius       0.29 um
 ### 路线2 现在 kill ON + 选择性 kill(方案A): 杀 α/e⁻/γ(Z≤2), 放过反冲核(Z>2)
 ### → 衰变子核(Fr/At/Bi/Po)存活→链完整; 4α 被 kill 截短→快(≈4×路线1)
 /mygeom/killOutsideCell true
@@ -49,9 +49,9 @@
 /source/type ac225_decay
 ###/source/compartment Membrane
 ### /source/compartment Nucleus
-### /source/compartment WholeCell
+/source/compartment WholeCell
 ### /source/compartment CellExceptNucleus
-/source/compartment Extracellular
+### /source/compartment Extracellular
 
 /run/particle/applyCuts true e-
 /run/particle/applyCuts true gamma

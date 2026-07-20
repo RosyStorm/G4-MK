@@ -332,7 +332,12 @@ void RunAction::BeginOfRunAction(const G4Run* /*aRun*/)
     fileName = "data/alpha.root";   // 单 α 验证, 无区室
   }
   else if (sourceType == "carbon") {
-    fileName = "data/carbon_" + compartment + ".root";  // 碳离子验证, 按区室命名
+    // C-12 外照射: 文件名含 r_d(域半径), 同 Am-241 格式
+    const auto* det = static_cast<const DetectorConstruction*>(
+      G4RunManager::GetRunManager()->GetUserDetectorConstruction());
+    G4double rd = det ? det->GetSiteRadius() : 0.5 * um;
+    G4int rd_nm = G4int(rd / nm + 0.5);
+    fileName = "data/Carbon/carbon_rd" + std::to_string(rd_nm) + "nm.root";
   }
   else if (sourceType == "am241_decay") {
     // Am-241 外照射: 文件名含 r_d(域半径), 不含区室(源固定在细胞上方)
@@ -345,6 +350,13 @@ void RunAction::BeginOfRunAction(const G4Run* /*aRun*/)
   }
   else {
     fileName = "data/microtrack.root";  // 兜底
+  }
+
+  // —— 自动创建输出目录(避免目录不存在导致崩溃) ——
+  G4String dir = fileName.substr(0, fileName.find_last_of('/'));
+  if (!dir.empty()) {
+    G4String mkdirCmd = "mkdir -p " + dir;
+    system(mkdirCmd.c_str());
   }
 
   analysisManager->OpenFile(fileName);

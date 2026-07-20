@@ -1,16 +1,8 @@
 #==========================================#
-# Carbon-12 ion microdosimetry simulation  #
-# C-12 碳离子微剂量学验证                   #
-# LET 参考值 : 33.7 keV/μm                 #
-# 靶区比释动能参考值 : 900 mGy              #
+# Carbon-12 ion external irradiation       #
+# SSD=100cm, 真空世界 + 细胞内 DNA 物理     #
+# 多线程安全(无 G4EmConfigurator)           #
 #==========================================#
-#
-# 物理说明：
-#   C-12 在水中 LET=33.7 keV/μm 对应约 150 MeV/u，总动能约 1800 MeV
-#   此能量为近似估算（基于 Bethe-Bloch 缩放），需用 Geant4 分步追踪验证
-#   可通过 /analysis/verbose 输出平均 dE/dx 核对 LET
-#   靶区（细胞核）比释动能参考值 900 mGy 为 MKM/SMK/DSMK 模型对比所用基准剂量
-#
 
 /control/verbose 0
 /run/verbose 2
@@ -21,18 +13,21 @@
 ###########################
 ### SETUP CONFIGURATION ###
 ###########################
-/mygeom/maxRange        100. um
+### maxRange ≥ SSD + cellRadius: 100 cm + 11.2 µm ≈ 100 cm
+/mygeom/maxRange        100. cm
 /mygeom/material        G4_WATER
-/mygeom/cellRadius      10. um
-/mygeom/nucleusRadius    8. um
-/mygeom/siteRadius      0.5 um
+/mygeom/cellRadius       11.2 um
+/mygeom/nucleusRadius     6.4 um
+/mygeom/siteRadius       0.24 um
+### 空气世界(C-12 需穿越100cm空气到达细胞; 水世界中C-12射程仅~20cm)
+/mygeom/worldAir        true
 /mygeom/killOutsideCell true
+/mygeom/killAtNucleus   true
 
 ####################
 ### PHYSICS LIST ###
 ####################
-### 注：Geant4-DNA dna_opt2 仅覆盖质子/α，重离子需用 dna_opt6 或 em_standard_opt4
-### 若 dna_opt2 无 C-12 截面会回落到 Geant4 标准 EM，如报 WARNING 请切换物理列表
+### 纯 DNA 物理(无标准EM混合 → 无双重计数 → 无 EmConfigurator)
 /physics/addPhysics dna_opt6
 /run/setCutForAGivenParticle gamma   0.01 um
 /run/setCutForAGivenParticle e-      0.01 um
@@ -42,21 +37,20 @@
 ######################
 ### INITIALIZATION ###
 ######################
-/run/numberOfThreads 8
+/run/numberOfThreads 4
 /run/initialize
 
 ###############################
-### SOURCE (mono C-12 ion)   ###
+### SOURCE (C-12 external)   ###
 ###############################
-### C-12 单能碳离子：位置按区室，方向各向同性，能量对应 LET=33.7 keV/μm
-### 能量约 1800 MeV（150 MeV/u × 12），如需精确 LET 请在模拟后验证并调整
-### 注：粒子定义(C-12 离子, Z=6 A=12)由代码中 fCarbon=G4IonTable::GetIon(6,12,0)自动处理，
-###     此处无需 /gun/particle 或 /gun/ion 命令，只需指定源类型与动能
+### 源位于细胞正上方 (0,0, R_cell + SSD), SSD=100 cm
+### C-12 以锥形对准细胞核(100cm处锥半角极小≈准直束)
 /source/type carbon
-/source/compartment Nucleus
-/gun/energy 1800.0 MeV
+/source/ssd             100. cm
+/gun/energy            1030. MeV
 
 /run/particle/applyCuts true e-
 /run/particle/applyCuts true gamma
 
-/run/beamOn 10
+### 验证样本
+/run/beamOn 1000

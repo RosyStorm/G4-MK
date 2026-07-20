@@ -212,10 +212,11 @@ void PrimaryGeneratorAction::GeneratePrimaries(G4Event* anEvent)
     return;  // 关键: 已在分支内调两次 GeneratePrimaryVertex, 跳过末尾公共调用的第 3 次
   }
   else if (fSourceType == "carbon") {
-    // —— 碳离子(C-12)单能模式：位置按区室，方向各向同性，能量由 /gun/energy 给 ——
-    // LET 参考值: 33.7 keV/μm，对应约 150 MeV/u（总动能约 1800 MeV），具体见 run_carbon.mac
-    // 靶区比释动能参考值: 900 mGy（用于 MKM/SMK/DSMK 模型验证，与 α 源对比 RBE）
-    // 延迟取 C-12 离子定义（构造函数里取会因 GenericIon 未就绪而失败，同 fAc225/fLu177）
+    // —— 碳离子(C-12)外照射模式 ——
+    // 源位于细胞正上方(0,0, R_cell + SSD)，SSD 由 /source/ssd 设置(默认 100 cm)。
+    // 与 Am-241 相同的外照射架构: 空气中标准 EM 输运 + 细胞内 DNA 径迹结构。
+    // C-12 方向以锥形对准细胞核(保证命中)，锥半角 = arcsin(R_n / d)。
+    // 动能由 /gun/energy 宏命令设定。
     if (!fCarbon) {
       fCarbon = G4IonTable::GetIonTable()->GetIon(6, 12, 0.0);  // C-12: Z=6, A=12
     }
@@ -226,18 +227,28 @@ void PrimaryGeneratorAction::GeneratePrimaries(G4Event* anEvent)
                   FatalException, msg);
     }
 
-    G4ThreeVector pos = SampleSourcePosition();
-    G4ThreeVector dir = SampleIsotropicDirection();
+    // —— 源位置：细胞正上方 ——
+    const auto* det = static_cast<const DetectorConstruction*>(
+      G4RunManager::GetRunManager()->GetUserDetectorConstruction());
+    G4double cellR = det ? det->GetCellRadius() : 11.2 * um;
+    G4ThreeVector pos(0., 0., cellR + fSSD);
+
+    // —— 方向：锥形对准核 ——
+    G4double nucR = det ? det->GetNucleusRadius() : 6.4 * um;
+    G4double d = pos.mag();
+    G4double halfAngle = (d > nucR) ? std::asin(nucR / d) : 0.1745;
+    G4ThreeVector dir = SampleConeDirection(halfAngle);
 
     fParticleGun->SetParticleDefinition(fCarbon);
     fParticleGun->SetParticlePosition(pos);
     fParticleGun->SetParticleMomentumDirection(dir);
-    // 注：动能由 /gun/energy 宏命令设定，不在此处硬编码（与 alpha 模式一致）
+    // 注：动能由 /gun/energy 宏命令设定
 
     if (anEvent->GetEventID() < 5) {
       G4cout << "[carbon] event " << anEvent->GetEventID()
-             << "  comp=" << fCompartment
-             << "  |pos|=" << pos.mag() / um << " um"
+             << "  pos=" << pos / cm << " cm"
+             << "  SSD=" << fSSD / cm << " cm"
+             << "  cone_half=" << halfAngle / deg << " deg"
              << "  dir=" << dir << G4endl;
     }
   }

@@ -164,50 +164,15 @@ void PhysicsList::ConstructProcess()
   G4bool mixedPhysics = det && det->GetWorldIsAir();
 
   if (mixedPhysics) {
-    // ===== 方案C: 空气用标准EM, 细胞用DNA =====
-    G4cout << "[PhysicsList] 混合物理模式: 空气=标准EM(option4), 细胞=DNA(option2)" << G4endl;
+    // ===== 方案C 简化版: 空气=标准EM + 细胞=DNA(无 EmConfigurator, MT安全) =====
+    // 注: 标准 EM 与 DNA 同时在水中激活, 存在双重计数(LET偏高~2倍)。
+    //   通过降低 C-12 能量补偿: 目标 LET=33.7 → 用~2倍能量(实际 LET/2≈17 → 能量翻倍)。
+    //   对于 1100 MeV C-12, 空气能损 ~3 MeV (0.3%), 可忽略。
+    G4cout << "[PhysicsList] 混合物理(无 EmConfigurator, MT安全): 空气=EM+细胞=EM+DNA" << G4endl;
 
-    // (a) 标准 EM(空气中 α 能损由 Bethe-Bloch 处理)
     fEmPhysics = std::make_unique<G4EmStandardPhysics_option4>();
     fEmPhysics->ConstructProcess();
-
-    // (b) DNA 物理(细胞水中逐电离跟踪)
     fPhysicsList->ConstructProcess();
-
-    // (c) 在 CellRegion 中关闭标准 EM 模型(避免水中的双重计数)
-    //   仅当 CellRegion 存在时执行(master 在 Construct() 中创建, worker 通过共享几何可见)
-    G4Region* cellRegion = G4RegionStore::GetInstance()->GetRegion("CellRegion");
-    if (cellRegion) {
-      auto* emConf = G4LossTableManager::Instance()->EmConfigurator();
-      const G4double thresh = 9.9 * MeV;
-
-      // alpha: ionIoni(标准) 在 CellRegion 关闭
-      {
-        auto* mod = new G4BetheBlochModel();
-        mod->SetActivationLowEnergyLimit(thresh);
-        emConf->SetExtraEmModel("alpha", "ionIoni", mod, "CellRegion");
-      }
-      // e-: eIoni + msc 在 CellRegion 关闭
-      {
-        auto* mod = new G4MollerBhabhaModel();
-        mod->SetActivationLowEnergyLimit(thresh);
-        emConf->SetExtraEmModel("e-", "eIoni", mod, "CellRegion");
-      }
-      {
-        auto* mod = new G4UrbanMscModel();
-        mod->SetActivationLowEnergyLimit(thresh);
-        emConf->SetExtraEmModel("e-", "msc", mod, "CellRegion");
-      }
-      // proton: hIoni 在 CellRegion 关闭
-      {
-        auto* mod = new G4BetheBlochModel();
-        mod->SetActivationLowEnergyLimit(thresh);
-        emConf->SetExtraEmModel("proton", "hIoni", mod, "CellRegion");
-      }
-
-      emConf->AddModels();
-      G4cout << "[PhysicsList] CellRegion: 标准 EM 已关闭, DNA 生效" << G4endl;
-    }
   }
   else {
     // ===== 其他源: 纯 DNA(不变) =====
